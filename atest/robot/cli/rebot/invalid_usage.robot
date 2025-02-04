@@ -20,6 +20,10 @@ Non-Existing Input
 Existing And Non-Existing Input
     Reading XML source '.*nönéx.xml' failed: .*    source=${INPUTFILE} nönéx.xml nonex2.xml
 
+No tests in output
+    [Setup]    Create File    %{TEMPDIR}/no_tests.xml    <robot><suite name="No Tests!"/></robot>
+    Suite 'No Tests!' contains no tests.    source=%{TEMPDIR}/no_tests.xml
+
 Non-XML Input
     [Setup]    Create File    %{TEMPDIR}/invalid.robot    Hello, world
     (\\[Fatal Error\\] .*: Content is not allowed in prolog.\\n)?Reading XML source '.*invalid.robot' failed: .*
@@ -48,32 +52,21 @@ Invalid Output Directory
     ...    -d %{TEMPDIR}/not-dir/dir -o out.xml -l none -r none
 
 Invalid --SuiteStatLevel
-    Option '--suitestatlevel' expected integer value but got 'not_int'.
+    Invalid value for option '--suitestatlevel': Expected integer, got 'not_int'.
     ...    --suitestatlevel not_int
 
 Invalid --TagStatLink
-    Invalid format for option '--tagstatlink'. Expected 'tag:link:title' but got 'less_than_3x_:'.
+    Invalid value for option '--tagstatlink': Expected format 'tag:link:title', got 'less_than_3x_:'.
     ...    --tagstatlink a:b:c --TagStatLink less_than_3x_:
 
 Invalid --RemoveKeywords
-    Invalid value for option '--removekeywords'. Expected 'ALL', 'PASSED', 'NAME:<pattern>', 'TAG:<pattern>', 'FOR', or 'WUKS' but got 'Invalid'.
+    Invalid value for option '--removekeywords': Expected 'ALL', 'PASSED', 'NAME:<pattern>', 'TAG:<pattern>', 'FOR' or 'WUKS', got 'Invalid'.
     ...    --removekeywords wuks --removek name:xxx --RemoveKeywords Invalid
-
---critical and --noncritical are deprecated
-    [Template]    NONE
-    ${result} =    Run Rebot    --critical pass --noncritical fail    ${INPUT}
-    ${messsage} =    Catenate
-    ...    Command line options --critical and --noncritical have been deprecated and have no effect with Rebot.
-    ...    Use --skiponfailure when starting execution instead.
-    Should Be Equal    ${result.stderr}    [ WARN ] ${messsage}
-    Should Be Equal As Integers   ${result.rc}    1
-    Check Test Case    Pass
-    Check Test Case    Fail
 
 *** Keywords ***
 Rebot Should Fail
     [Arguments]    ${error}    ${options}=    ${source}=${INPUT}
-    ${result} =    Run Rebot    ${options}    ${source}    default options=    output=
-    Should Be Equal As Integers   ${result.rc}    252
+    ${result} =    Run Rebot    ${options}    ${source}    default options=    output=None
+    Should Be Equal    ${result.rc}    252    type=int
     Should Be Empty    ${result.stdout}
     Should Match Regexp    ${result.stderr}    ^\\[ .*ERROR.* \\] ${error}${USAGETIP}$

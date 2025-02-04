@@ -149,16 +149,10 @@ Misspelled Keyword No Whitespace
     ...    ${INDENT}RecLibrary1.Do Action
     DoAtcion
 
-Keyword With Period
-    [Documentation]    FAIL
-    ...    No keyword with name 'Kye.word with_periods' found. Did you mean:
-    ...    ${INDENT}Key.word.with Periods.
-    Kye.word with_periods
-
 Keyword With Periods
     [Documentation]    FAIL
     ...    No keyword with name 'Kye.word.with_periods' found. Did you mean:
-    ...    ${INDENT}Key.word.with Periods.
+    ...    ${INDENT}Key.word.with periods.
     Kye.word.with_periods
 
 Similar User Keywords
@@ -190,7 +184,7 @@ Embedded Similar User Keywords
 Existing Non-ASCII Keyword
     [Documentation]    FAIL
     ...    No keyword with name 'hyvää öytä' found. Did you mean:
-    ...    ${INDENT}Hyvää Yötä
+    ...    ${INDENT}Hyvää yötä
     hyvää öytä
 
 Wrong Library Name
@@ -214,12 +208,8 @@ Substring of Long Keyword
 Similar To Really Long Keyword
     [Documentation]    FAIL
     ...    No keyword with name 'Reallly Long Keyword that doesn't end for a while' found. Did you mean:
-    ...    ${INDENT}Really Long Keyword That Does Not End For Quite A While
+    ...    ${INDENT}Really long keyword that does not end for quite a while
     Reallly Long Keyword that doesn't end for a while
-
-Keyword With Arguments Without Correct Spacing
-    [Documentation]    FAIL    No keyword with name 'Record message=hello world level=WARN' found.
-    Record message=hello world level=WARN
 
 Misspelled Keyword With Arguments
     [Documentation]    FAIL
@@ -309,6 +299,21 @@ Implicit Substring Of Many Keywords
     ...    ${INDENT}RecLibrary1.Read Data
     Data
 
+Missing separator between keyword and arguments
+    [Documentation]    FAIL
+    ...    No keyword with name 'Should Be Equal ${variable} 42' found. \
+    ...    Did you try using keyword 'BuiltIn.Should Be Equal' and \
+    ...    forgot to use enough whitespace between keyword and arguments?
+    Should Be Equal ${variable} 42
+
+Missing separator between keyword and arguments with multiple matches
+    [Documentation]    FAIL
+    ...    No keyword with name 'Should Be Equal As Integers ${variable} 42' found. \
+    ...    Did you try using keyword 'BuiltIn.Should Be Equal' or \
+    ...    'BuiltIn.Should Be Equal As Integers' and \
+    ...    forgot to use enough whitespace between keyword and arguments?
+    Should Be Equal As Integers ${variable} 42
+
 *** Keywords ***
 A User Keyword
     No Operation
@@ -327,6 +332,7 @@ Embedded User ${hello} Argument ${world} Keyword 1
 
 Embedded User ${foo} Argument ${bar} Keyword 2
     No Operation
+Hyvää yötä
 
 Unique ${i} Kw ${j}
     No Operation
@@ -334,7 +340,7 @@ Unique ${i} Kw ${j}
 Key.word.with periods.
     No Operation
 
-hyvää yötä
+Hyvää yötä
     No Operation
 
 Really long keyword that does not end for quite a while

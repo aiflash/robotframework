@@ -36,9 +36,9 @@ Many steps are automated using the generic `Invoke <http://pyinvoke.org>`_
 tool with a help by our `rellu <https://github.com/robotframework/rellu>`_
 utilities, but also other tools and modules are needed. A pre-condition is
 installing all these, and that's easiest done using `pip
-<http://pip-installer.org>`_ and the provided `<requirements-build.txt>`_ file::
+<http://pip-installer.org>`_ and the provided `<requirements-dev.txt>`_ file::
 
-    pip install -r requirements-build.txt
+    pip install -r requirements-dev.txt
 
 Using Invoke
 ~~~~~~~~~~~~
@@ -66,10 +66,17 @@ Testing
 Make sure that adequate tests are executed before releases are created.
 See `<atest/README.rst>`_ for details.
 
+If output.xml `schema <doc/schema/README.rst>`_ has changed, remember to
+run tests also with `full schema validation`__ enabled::
+
+    atest/run.py --schema-validation
+
+__ https://github.com/robotframework/robotframework/tree/master/atest#schema-validation
+
 Preparation
 -----------
 
-1. Check that you are on the master branch and have nothing left to commit,
+1. Check that you are on the right branch and have nothing left to commit,
    pull, or push::
 
       git branch
@@ -86,13 +93,13 @@ Preparation
 
       VERSION=<version>
 
-   For example, ``VERSION=3.0.1`` or ``VERSION=3.1a2``.
+   For example, ``VERSION=7.1.1`` or ``VERSION=7.2a2``. No ``v`` prefix!
 
 Release notes
 -------------
 
-1. Create personal `GitHub access token`__ to be able to access issue tracker
-   programmatically. The token needs only the `repo/public_repo` scope.
+1. Create a personal `GitHub access token`__ to be able to access issue tracker
+   programmatically. The token needs only the ``repo/public_repo`` scope.
 
 2. Set GitHub user information into shell variables to ease running the
    ``invoke release-notes`` command in the next step::
@@ -112,7 +119,7 @@ Release notes
    <Set version_>`__. Omit the ``-w`` option if you just want to get release
    notes printed to the console, not written to a file.
 
-   When generating release notes for a preview release like ``3.0.2rc1``,
+   When generating release notes for a preview release like ``7.2rc1``,
    the list of issues is only going to contain issues with that label
    (e.g. ``rc1``) or with a label of an earlier preview release (e.g.
    ``alpha1``, ``beta2``).
@@ -147,14 +154,13 @@ __ https://docs.github.com/en/free-pro-team@latest/github/authenticating-to-gith
 Set version
 -----------
 
-1. Set version information in `<src/robot/version.py>`_, `<setup.py>`_ and
-   `<pom.xml>`_::
+1. Set version information in `<src/robot/version.py>`_ and `<setup.py>`_::
 
       invoke set-version $VERSION
 
 2. Commit and push changes::
 
-      git commit -m "Updated version to $VERSION" src/robot/version.py setup.py pom.xml
+      git commit -m "Updated version to $VERSION" src/robot/version.py setup.py
       git push
 
 Tagging
@@ -183,27 +189,39 @@ Creating distributions
 
       invoke clean
 
-3. Create and validate source distribution in zip format and
-   `wheel <https://pythonwheels.com>`_::
+3. Build `libdoc.html`::
 
-      python setup.py sdist --formats zip bdist_wheel
+      npm run build --prefix src/web/
+
+   This step can be skipped if there are no changes to Libdoc. Prerequisites
+   are listed in `<src/web/README.md>`_.
+
+4. Create and validate source distribution and `wheel <https://pythonwheels.com>`_::
+
+      python setup.py sdist bdist_wheel
       ls -l dist
       twine check dist/*
 
    Distributions can be tested locally if needed.
 
-4. Upload distributions to PyPI::
+5. Upload distributions to PyPI::
 
       twine upload dist/*
 
-5. Verify that project pages at `PyPI
+6. Verify that project pages at `PyPI
    <https://pypi.python.org/pypi/robotframework>`_ look good.
 
-6. Test installation::
+7. Test installation::
 
       pip install --pre --upgrade robotframework
 
-7. Documentation
+8. Documentation
+
+   - For a reproducible build, set the ``SOURCE_DATE_EPOCH``
+     environment variable to a constant value, corresponding to the
+     date in seconds since the Epoch (also known as Epoch time).  For
+     more information regarding this environment variable, see
+     https://reproducible-builds.org/docs/source-date-epoch/.
 
    - Generate library documentation::
 
@@ -217,19 +235,19 @@ Creating distributions
 
         git checkout gh-pages
         invoke add-docs $VERSION --push
-        git checkout master
+        git checkout master    # replace master with v*-maintenance if needed!
 
 Post actions
 ------------
 
 1. Back to master if needed::
 
-      git checkout master
+      git checkout master    # replace master with v*-maintenance if needed!
 
 2. Set dev version based on the previous version::
 
       invoke set-version dev
-      git commit -m "Back to dev version" src/robot/version.py setup.py pom.xml
+      git commit -m "Back to dev version" src/robot/version.py setup.py
       git push
 
    For example, ``1.2.3`` is changed to ``1.2.4.dev1`` and ``2.0.1a1``

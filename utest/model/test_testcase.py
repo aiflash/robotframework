@@ -1,5 +1,5 @@
 import unittest
-import warnings
+from pathlib import Path
 
 from robot.utils.asserts import (assert_equal, assert_false, assert_not_equal, assert_raises,
                                  assert_raises_with_msg, assert_true)
@@ -11,6 +11,11 @@ class TestTestCase(unittest.TestCase):
 
     def setUp(self):
         self.test = TestCase(tags=['t1', 't2'], name='test')
+
+    def test_type(self):
+        assert_equal(self.test.type, 'TEST')
+        assert_equal(self.test.type, self.test.TEST)
+        assert_equal(self.test.type, self.test.TASK)
 
     def test_id_without_parent(self):
         assert_equal(self.test.id, 't1')
@@ -31,7 +36,7 @@ class TestTestCase(unittest.TestCase):
         assert_equal(test.source, None)
         suite.tests.append(test)
         suite.source = '/unit/tests'
-        assert_equal(test.source, '/unit/tests')
+        assert_equal(test.source, Path('/unit/tests'))
 
     def test_setup(self):
         assert_equal(self.test.setup.__class__, Keyword)
@@ -99,34 +104,12 @@ class TestTestCase(unittest.TestCase):
         assert_equal(copy.name, 'New')
         assert_equal(copy.doc, 'New')
 
-    def test_keywords_deprecation(self):
-        self.test.body = [Keyword(), Keyword(), Keyword()]
-        with warnings.catch_warnings(record=True) as w:
-            kws = self.test.keywords
-            assert_equal(len(kws), 3)
-            assert_true('deprecated' in str(w[0].message))
-        assert_raises(AttributeError, kws.append, Keyword())
-        assert_raises(AttributeError, setattr, self.test, 'keywords', [])
-
-
-class TestStringRepresentation(unittest.TestCase):
-
-    def setUp(self):
-        self.empty = TestCase()
-        self.ascii = TestCase(name='Kekkonen')
-        self.non_ascii = TestCase(name=u'hyv\xe4 nimi')
-
-    def test_str(self):
-        for tc, expected in [(self.empty, ''),
-                             (self.ascii, 'Kekkonen'),
-                             (self.non_ascii, u'hyv\xe4 nimi')]:
-            assert_equal(str(tc), expected)
-
-    def test_repr(self):
-        for tc, expected in [(self.empty, "TestCase(name='')"),
-                             (self.ascii, "TestCase(name='Kekkonen')"),
-                             (self.non_ascii, u"TestCase(name=%r)" % u'hyv\xe4 nimi')]:
-            assert_equal(repr(tc), 'robot.model.' + expected)
+    def test_str_and_repr(self):
+        for name in '', 'Kekkonen', 'hyvä nimi', "quo\"te's":
+            test = TestCase(name)
+            expected = f'robot.model.TestCase(name={name!r})'
+            assert_equal(str(test), expected)
+            assert_equal(repr(test), expected)
 
 
 class TestTestCases(unittest.TestCase):

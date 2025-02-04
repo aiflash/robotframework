@@ -11,7 +11,7 @@ from robot.utils.asserts import assert_equal, assert_raises
 
 TEMPDIR = os.getenv('TEMPDIR') or tempfile.gettempdir()
 PATH = os.path.join(TEMPDIR, 'filereader.test')
-STRING = u'Hyv\xe4\xe4\nty\xf6t\xe4\nC\u043f\u0430\u0441\u0438\u0431\u043e\n'
+STRING = 'Hyvää\ntyötä\nCпасибо\n'
 
 
 def assert_reader(reader, name=PATH):
@@ -94,12 +94,17 @@ class TestReadFile(unittest.TestCase):
             assert_reader(reader, '<in-memory file>')
         assert_open(f)
 
-    def test_accept_text(self):
+    def test_text(self):
         with FileReader(STRING, accept_text=True) as reader:
             assert_reader(reader, '<in-memory file>')
         assert_closed(reader.file)
 
-    def test_no_accept_text(self):
+    def test_text_with_special_chars(self):
+        for text in '!"#¤%&/()=?', '*** Test Cases ***', 'in:va:lid':
+            with FileReader(text, accept_text=True) as reader:
+                assert_equal(reader.read(), text)
+
+    def test_text_when_text_is_not_accepted(self):
         assert_raises(IOError, FileReader, STRING)
 
     def test_readlines(self):

@@ -2,8 +2,6 @@ import logging
 import time
 import sys
 
-logging.getLogger().addHandler(logging.StreamHandler())
-
 
 class CustomHandler(logging.Handler):
 
@@ -78,5 +76,22 @@ def log_messages_different_time():
     logging.info('Second message 0.1 sec later')
 
 
+def log_with_format():
+    test_format = "%(name)s %(levelname)s %(message)s"
+    formatter = logging.Formatter(fmt=test_format)
+    root = logging.getLogger()
+    handler = root.handlers[0]
+    old_formatter = handler.formatter
+    handler.setFormatter(formatter)
+    logging.info("logged at info")
+    handler.setFormatter(old_formatter)
+
+
 def log_something():
     logging.info('something')
+
+
+def log_non_strings():
+    logging.info(42)
+    logging.info(True)
+    logging.info(None)

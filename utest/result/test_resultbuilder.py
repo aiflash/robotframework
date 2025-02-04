@@ -1,8 +1,8 @@
 import os
 import unittest
 import tempfile
+from datetime import datetime
 from io import StringIO
-from os.path import join, dirname
 from pathlib import Path
 
 from robot.errors import DataError
@@ -10,14 +10,10 @@ from robot.result import ExecutionResult, ExecutionResultBuilder, Result, TestSu
 from robot.utils.asserts import assert_equal, assert_false, assert_true, assert_raises
 
 
-def _read_file(name):
-    with open(join(dirname(__file__), name)) as f:
-        return f.read()
-
-
-GOLDEN_XML = _read_file('golden.xml')
-GOLDEN_XML_TWICE = _read_file('goldenTwice.xml')
-SUITE_TEARDOWN_FAILED = _read_file('suite_teardown_failed.xml')
+CURDIR = Path(__file__).resolve().parent
+GOLDEN_XML = (CURDIR / 'golden.xml').read_text(encoding='UTF-8')
+GOLDEN_XML_TWICE = (CURDIR / 'goldenTwice.xml').read_text(encoding='UTF-8')
+SUITE_TEARDOWN_FAILED = (CURDIR / 'suite_teardown_failed.xml').read_text(encoding='UTF-8')
 
 
 class TestBuildingSuiteExecutionResult(unittest.TestCase):
@@ -27,11 +23,23 @@ class TestBuildingSuiteExecutionResult(unittest.TestCase):
         self.suite = self.result.suite
         self.test = self.suite.tests[0]
 
+    def test_result_has_generation_time(self):
+        assert_equal(self.result.generation_time, datetime(2023, 9, 8, 12, 1, 47, 906104))
+        result = ExecutionResult("<robot><suite/></robot>")
+        assert_equal(result.generation_time, None)
+        result = ExecutionResult("<robot generated='20111024 13:41:20.873'><suite/></robot>")
+        assert_equal(result.generation_time, datetime(2011, 10, 24, 13, 41, 20, 873000))
+
+    def test_generation_time_can_be_set_as_string(self):
+        dt = datetime.now()
+        result = Result(generation_time=dt.isoformat())
+        assert_equal(result.generation_time, dt)
+
     def test_suite_is_built(self):
-        assert_equal(self.suite.source, 'normal.html')
+        assert_equal(self.suite.source, Path('normal.html'))
         assert_equal(self.suite.name, 'Normal')
         assert_equal(self.suite.doc, 'Normal test cases')
-        assert_equal(self.suite.metadata, {'Something': 'My Value'})
+        assert_equal(self.suite.metadata, {'Something': 'My Value', 'Nön-ÄSCÏÏ': '🤖'})
         assert_equal(self.suite.status, 'PASS')
         assert_equal(self.suite.starttime, '20111024 13:41:20.873')
         assert_equal(self.suite.endtime, '20111024 13:41:20.952')
@@ -43,14 +51,14 @@ class TestBuildingSuiteExecutionResult(unittest.TestCase):
         assert_equal(self.test.doc, 'Test case documentation')
         assert_equal(self.test.timeout, None)
         assert_equal(list(self.test.tags), ['t1'])
-        assert_equal(len(self.test.body), 4)
+        assert_equal(len(self.test.body), 6)
         assert_equal(self.test.status, 'PASS')
         assert_equal(self.test.starttime, '20111024 13:41:20.925')
         assert_equal(self.test.endtime, '20111024 13:41:20.934')
 
     def test_keyword_is_built(self):
         keyword = self.test.body[0]
-        assert_equal(keyword.name, 'BuiltIn.Log')
+        assert_equal(keyword.full_name, 'BuiltIn.Log')
         assert_equal(keyword.doc, 'Logs the given message with the given level.')
         assert_equal(keyword.args, ('Test 1',))
         assert_equal(keyword.assign, ())
@@ -78,18 +86,18 @@ class TestBuildingSuiteExecutionResult(unittest.TestCase):
         message = self.test.body[0].messages[0]
         assert_equal(message.message, 'Test 1')
         assert_equal(message.level, 'INFO')
-        assert_equal(message.timestamp, '20111024 13:41:20.927')
+        assert_equal(message.timestamp, datetime(2011, 10, 24, 13, 41, 20, 927000))
 
     def test_for_is_built(self):
         for_ = self.test.body[2]
         assert_equal(for_.flavor, 'IN')
-        assert_equal(for_.variables, ('${x}',))
+        assert_equal(for_.assign, ('${x}',))
         assert_equal(for_.values, ('not in source',))
         assert_equal(len(for_.body), 1)
-        assert_equal(for_.body[0].variables, {'${x}': 'not in source'})
+        assert_equal(for_.body[0].assign, {'${x}': 'not in source'})
         assert_equal(len(for_.body[0].body), 1)
         kw = for_.body[0].body[0]
-        assert_equal(kw.name, 'BuiltIn.Log')
+        assert_equal(kw.full_name, 'BuiltIn.Log')
         assert_equal(kw.args, ('${x}',))
         assert_equal(len(kw.body), 1)
         assert_equal(kw.body[0].message, 'not in source')
@@ -101,13 +109,13 @@ class TestBuildingSuiteExecutionResult(unittest.TestCase):
         assert_equal(if_.status, if_.NOT_RUN)
         assert_equal(len(if_.body), 1)
         kw = if_.body[0]
-        assert_equal(kw.name, 'BuiltIn.Fail')
+        assert_equal(kw.full_name, 'BuiltIn.Fail')
         assert_equal(kw.status, kw.NOT_RUN)
         assert_equal(else_.condition, None)
         assert_equal(else_.status, else_.PASS)
         assert_equal(len(else_.body), 1)
         kw = else_.body[0]
-        assert_equal(kw.name, 'BuiltIn.No Operation')
+        assert_equal(kw.full_name, 'BuiltIn.No Operation')
         assert_equal(kw.status, kw.PASS)
 
     def test_suite_setup_is_built(self):
@@ -128,18 +136,26 @@ class TestBuildingSuiteExecutionResult(unittest.TestCase):
         class NonVisitingSuite(TestSuite):
             def visit(self, visitor):
                 pass
-        result = Result(root_suite=NonVisitingSuite())
+        result = Result(suite=NonVisitingSuite())
         builder = ExecutionResultBuilder(StringIO(GOLDEN_XML), include_keywords=False)
         builder.build(result)
         assert_equal(len(result.suite.tests[0].body), 0)
 
-    def test_rpa(self):
+    def test_rpa_with_xml(self):
         rpa_false = GOLDEN_XML
-        self._validate_rpa(ExecutionResult(StringIO(rpa_false)), False)
-        self._validate_rpa(ExecutionResult(StringIO(rpa_false), rpa=True), True)
-        rpa_true = GOLDEN_XML.replace('rpa="false"', 'rpa="true"')
-        self._validate_rpa(ExecutionResult(StringIO(rpa_true)), True)
-        self._validate_rpa(ExecutionResult(StringIO(rpa_true), rpa=False), False)
+        self._validate_rpa(ExecutionResult(rpa_false), False)
+        self._validate_rpa(ExecutionResult(rpa_false, rpa=True), True)
+        rpa_true = rpa_false.replace('rpa="false"', 'rpa="true"')
+        self._validate_rpa(ExecutionResult(rpa_true), True)
+        self._validate_rpa(ExecutionResult(rpa_true, rpa=False), False)
+
+    def test_rpa_with_json(self):
+        rpa_false = ExecutionResult(GOLDEN_XML).to_json()
+        self._validate_rpa(ExecutionResult(rpa_false), False)
+        self._validate_rpa(ExecutionResult(rpa_false, rpa=True), True)
+        rpa_true = rpa_false.replace('"rpa":false', '"rpa":true')
+        self._validate_rpa(ExecutionResult(rpa_true), True)
+        self._validate_rpa(ExecutionResult(rpa_true, rpa=False), False)
 
     def _validate_rpa(self, result, expected):
         assert_equal(result.rpa, expected)
@@ -352,10 +368,10 @@ class TestUsingPathlibPath(unittest.TestCase):
 
     def test_suite_is_built(self, suite=None):
         suite = suite or self.result.suite
-        assert_equal(suite.source, 'normal.html')
+        assert_equal(suite.source, Path('normal.html'))
         assert_equal(suite.name, 'Normal')
         assert_equal(suite.doc, 'Normal test cases')
-        assert_equal(suite.metadata, {'Something': 'My Value'})
+        assert_equal(suite.metadata, {'Something': 'My Value', 'Nön-ÄSCÏÏ': '🤖'})
         assert_equal(suite.status, 'PASS')
         assert_equal(suite.starttime, '20111024 13:41:20.873')
         assert_equal(suite.endtime, '20111024 13:41:20.952')
@@ -368,7 +384,7 @@ class TestUsingPathlibPath(unittest.TestCase):
         assert_equal(test.doc, 'Test case documentation')
         assert_equal(test.timeout, None)
         assert_equal(list(test.tags), ['t1'])
-        assert_equal(len(test.body), 4)
+        assert_equal(len(test.body), 6)
         assert_equal(test.status, 'PASS')
         assert_equal(test.starttime, '20111024 13:41:20.925')
         assert_equal(test.endtime, '20111024 13:41:20.934')

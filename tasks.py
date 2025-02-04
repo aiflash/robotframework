@@ -22,7 +22,6 @@ REPOSITORY = 'robotframework/robotframework'
 VERSION_PATH = Path('src/robot/version.py')
 VERSION_PATTERN = "VERSION = '(.*)'"
 SETUP_PATH = Path('setup.py')
-POM_PATH = Path('pom.xml')
 POM_VERSION_PATTERN = '<version>(.*)</version>'
 RELEASE_NOTES_PATH = Path('doc/releasenotes/rf-{version}.rst')
 RELEASE_NOTES_TITLE = 'Robot Framework {version}'
@@ -34,9 +33,9 @@ and bug fixes. **MORE intro stuff...**
 All issues targeted for Robot Framework {version.milestone} can be found
 from the `issue tracker milestone`_.
 
-Questions and comments related to the release can be sent to the
-`robotframework-users`_ mailing list or to `Robot Framework Slack`_,
-and possible bugs submitted to the `issue tracker`_.
+Questions and comments related to the release can be sent to the `#devel`
+channel on `Robot Framework Slack`_ and possible bugs submitted to
+the `issue tracker`_.
 
 **REMOVE ``--pre`` from the next command with final releases.**
 If you have pip_ installed, just run
@@ -51,9 +50,9 @@ to install the latest available release or use
 
    pip install robotframework=={version}
 
-to install exactly this version. Alternatively you can download the source
-distribution from PyPI_ and install it manually. For more details and other
-installation approaches, see the `installation instructions`_.
+to install exactly this version. Alternatively you can download the package
+from PyPI_ and install it manually. For more details and other installation
+approaches, see the `installation instructions`_.
 
 Robot Framework {version} was released on {date}.
 
@@ -64,7 +63,8 @@ Robot Framework {version} was released on {date}.
 .. _issue tracker milestone: https://github.com/robotframework/robotframework/issues?q=milestone%3A{version.milestone}
 .. _issue tracker: https://github.com/robotframework/robotframework/issues
 .. _robotframework-users: http://groups.google.com/group/robotframework-users
-.. _Robot Framework Slack: https://robotframework-slack-invite.herokuapp.com
+.. _Slack: http://slack.robotframework.org
+.. _Robot Framework Slack: Slack_
 .. _installation instructions: ../../INSTALL.rst
 '''
 
@@ -90,7 +90,6 @@ def set_version(ctx, version):
     version = Version(version, VERSION_PATH, VERSION_PATTERN)
     version.write()
     Version(str(version), SETUP_PATH, VERSION_PATTERN).write()
-    Version(str(version), POM_PATH, POM_VERSION_PATTERN).write()
     print(version)
 
 
@@ -120,6 +119,7 @@ def library_docs(ctx, name):
             raise Exit(f"'{name}' is not a unique library prefix.")
     for lib in libraries:
         libdoc(lib, str(Path(f'doc/libraries/{lib}.html')))
+        libdoc(lib, str(Path(f'doc/libraries/{lib}.json')), specdocformat='RAW')
 
 
 @task

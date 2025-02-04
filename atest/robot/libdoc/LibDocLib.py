@@ -2,24 +2,27 @@ import json
 import os
 import pprint
 import shlex
-from os.path import abspath, dirname, exists, join, normpath, relpath
+from pathlib import Path
 from subprocess import run, PIPE, STDOUT
 
+from jsonschema import Draft202012Validator
 from xmlschema import XMLSchema
 
 from robot.api import logger
-from robot.utils import SYSTEM_ENCODING
-from robot.running.arguments import ArgInfo
+from robot.utils import NOT_SET, SYSTEM_ENCODING
+from robot.running.arguments import ArgInfo, TypeInfo
 
 
-ROOT = join(dirname(abspath(__file__)), '..', '..', '..')
+ROOT = Path(__file__).absolute().parent.parent.parent.parent
 
 
 class LibDocLib:
 
     def __init__(self, interpreter=None):
         self.interpreter = interpreter
-        self.schema = XMLSchema(join(ROOT, 'doc', 'schema', 'libdoc.03.xsd'))
+        self.xml_schema = XMLSchema(str(ROOT/'doc/schema/libdoc.xsd'))
+        with open(ROOT/'doc/schema/libdoc.json', encoding='UTF-8') as f:
+            self.json_schema = Draft202012Validator(json.load(f))
 
     @property
     def libdoc(self):
@@ -29,7 +32,7 @@ class LibDocLib:
         cmd = self.libdoc + self._split_args(args)
         cmd[-1] = cmd[-1].replace('/', os.sep)
         logger.info(' '.join(cmd))
-        result = run(cmd, cwd=join(ROOT, 'src'), stdout=PIPE, stderr=STDOUT,
+        result = run(cmd, cwd=ROOT/'src', stdout=PIPE, stderr=STDOUT,
                      encoding=SYSTEM_ENCODING, timeout=120, universal_newlines=True)
         logger.info(result.stdout)
         return result.stdout
@@ -53,25 +56,32 @@ class LibDocLib:
                 return line.split('=', 1)[1].strip(' \n;')
         raise RuntimeError('No model found from HTML')
 
-    def validate_spec(self, path):
-        self.schema.validate(path)
+    def validate_xml_spec(self, path):
+        self.xml_schema.validate(path)
 
-    def relative_source(self, path, start):
-        if not exists(path):
-            return path
-        try:
-            return relpath(path, start)
-        except ValueError:
-            return normpath(path)
+    def validate_json_spec(self, path):
+        with open(path, encoding='UTF-8') as f:
+            self.json_schema.validate(json.load(f))
 
     def get_repr_from_arg_model(self, model):
         return str(ArgInfo(kind=model['kind'],
                            name=model['name'],
-                           types=tuple(model['type']),
-                           default=model['default'] or ArgInfo.NOTSET))
+                           type=self._get_type_info(model['type']),
+                           default=self._get_default(model['default'])))
 
     def get_repr_from_json_arg_model(self, model):
         return str(ArgInfo(kind=model['kind'],
                            name=model['name'],
-                           types=tuple(model['types']),
-                           default=model['defaultValue'] or ArgInfo.NOTSET))
+                           type=self._get_type_info(model['type']),
+                           default=self._get_default(model['defaultValue'])))
+
+    def _get_type_info(self, data):
+        if not data:
+            return None
+        if isinstance(data, str):
+            return TypeInfo.from_string(data)
+        nested = [self._get_type_info(n) for n in data.get('nested', ())]
+        return TypeInfo(data['name'], None, nested=nested or None)
+
+    def _get_default(self, data):
+        return data if data is not None else NOT_SET

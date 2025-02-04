@@ -9,18 +9,10 @@ robot.running.timeouts package
 Submodules
 ----------
 
-robot.running.timeouts.ironpython module
-----------------------------------------
+robot.running.timeouts.nosupport module
+---------------------------------------
 
-.. automodule:: robot.running.timeouts.ironpython
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-robot.running.timeouts.jython module
-------------------------------------
-
-.. automodule:: robot.running.timeouts.jython
+.. automodule:: robot.running.timeouts.nosupport
    :members:
    :undoc-members:
    :show-inheritance:

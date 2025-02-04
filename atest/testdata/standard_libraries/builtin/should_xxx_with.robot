@@ -16,6 +16,7 @@ Should Start With case-insensitive
     Hello!           hELLo            ignore_case=True
     HYVÄÄ YÖTÄ       hyvää            ignore_case=yeah
     Hello, world!    hello, WORLD!    ignore_case=True
+    Straße           stras            ignore_case=True
 
 Should Start With without values
     [Documentation]    FAIL My message
@@ -91,11 +92,11 @@ Should Not Start With
     Hello, world!    Hello
 
 Should Not Start With case-insensitive
-    [Documentation]     FAIL  'hello, world?' starts with 'hello, world'
+    [Documentation]     FAIL  'hello, ss?' starts with 'hello, s'
     [Template]    Should Not Start With
     !Hello!          hELLo           ignore_case=True
     HYVÄÄ YÖTÄ       pahaa           ignore_case=yeah
-    Hello, world?    hello, WORLD    ignore_case=True
+    Hello, ß?        hello, s        ignore_case=True
 
 Should Not Start With without leading spaces
     [Documentation]    FAIL Several failures occurred:
@@ -113,7 +114,7 @@ Should Not Start With without leading spaces
 Should Not Start With without trailing spaces
     [Documentation]    FAIL Several failures occurred:
     ...
-    ...    1)  'test' starts with 'test'
+    ...    1) 'test' starts with 'test'
     ...
     ...    2) 'test value' starts with 'test'
     ...
@@ -178,7 +179,7 @@ Should End With case-insensitive
     [Template]      Should End With
     This is it       Is IT            ignore_case=True
     Hello, world!    hello, WORLD!    ignore_case=True
-    HYVÄÄ YÖTÄ       ä yötä           ignore_case=True
+    HYVÄÄ YÖTÄ ß     ä yötä Ss        ignore_case=True
 
 Should End With without leading spaces
     [Documentation]    FAIL 'YÖTÄ' does not end with 'yötä'
@@ -221,7 +222,7 @@ Should End With and do not collapse spaces
     ...
     ...    1) '\ttest\ \ ?' does not end with '\n?'
     ...
-    ...    2)  repr=yes: '\t\nyötä\t' does not end with '\ Yötä'
+    ...    2) repr=yes: '\t\nyötä\t' does not end with '\ Yötä'
     [Template]    Should End With
     \ttest\ \ ?       \n?         collapse_spaces=False
     \t\nyötä\t        \ Yötä      repr=yes    collapse_spaces=${FALSE}
@@ -232,7 +233,7 @@ Should End With and collapse spaces
     ...
     ...    1) ' test ?' does not end with 'T ?'
     ...
-    ...    2)  repr=yes: ' yötä ' does not end with ' Yötä'
+    ...    2) repr=yes: ' yötä ' does not end with ' Yötä'
     [Template]    Should End With
     \ttest\ \ ?       T\n?          collapse_spaces=True
     \t\nyötä\t        \ Yötä        repr=yes    collapse_spaces=${TRUE}
@@ -245,11 +246,11 @@ Should Not End With
     Hillo!    !    Message only    No Values
 
 Should Not End With case-insensitive
-    [Documentation]     FAIL  'hello, world!' ends with 'hello, world!'
+    [Documentation]     FAIL  'hello, ss!' ends with 'hello, ss!'
     [Template]    Should Not End With
     Hello!           hELLo            ignore_case=True
     HYVÄÄ YÖTÄ       hyvää            ignore_case=yeah
-    Hello, world!    hello, WORLD!    ignore_case=True
+    Hello, ß!        HELLO, SS!       ignore_case=True
 
 Should Not End With without leading spaces
     [Documentation]    FAIL Several failures occurred:

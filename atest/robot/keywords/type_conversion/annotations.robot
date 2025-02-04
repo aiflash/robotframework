@@ -63,16 +63,13 @@ Bytes
 Invalid bytes
     Check Test Case    ${TESTNAME}
 
-Bytestring
-    Check Test Case    ${TESTNAME}
-
-Invalid bytesstring
-    Check Test Case    ${TESTNAME}
-
 Bytearray
     Check Test Case    ${TESTNAME}
 
 Invalid bytearray
+    Check Test Case    ${TESTNAME}
+
+Bytestring replacement
     Check Test Case    ${TESTNAME}
 
 Datetime
@@ -91,6 +88,12 @@ Timedelta
     Check Test Case    ${TESTNAME}
 
 Invalid timedelta
+    Check Test Case    ${TESTNAME}
+
+Path
+    Check Test Case    ${TESTNAME}
+
+Invalid Path
     Check Test Case    ${TESTNAME}
 
 Enum
@@ -204,7 +207,10 @@ Invalid kwonly
 Return value annotation causes no error
     Check Test Case    ${TESTNAME}
 
-None as default
+None as default with known type
+    Check Test Case    ${TESTNAME}
+
+None as default with unknown type
     Check Test Case    ${TESTNAME}
 
 Forward references

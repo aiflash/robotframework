@@ -14,21 +14,25 @@
 #  limitations under the License.
 
 import os
+import signal as signal_module
 import subprocess
+import sys
 import time
 from tempfile import TemporaryFile
-import signal as signal_module
 
-from robot.utils import (abspath, cmdline2list, ConnectionCache, console_decode,
-                         console_encode, is_list_like, is_string, is_unicode,
-                         is_truthy, NormalizedDict, secs_to_timestr, system_decode,
-                         system_encode, timestr_to_secs, WINDOWS)
-from robot.version import get_version
 from robot.api import logger
+from robot.utils import (cmdline2list, ConnectionCache, console_decode, console_encode,
+                         is_list_like, is_pathlike, is_string, is_truthy,
+                         NormalizedDict, secs_to_timestr, system_decode, system_encode,
+                         timestr_to_secs, WINDOWS)
+from robot.version import get_version
+
+
+LOCALE_ENCODING = 'locale' if sys.version_info >= (3, 10) else None
 
 
 class Process:
-    """Robot Framework test library for running processes.
+    """Robot Framework library for running processes.
 
     This library utilizes Python's
     [http://docs.python.org/library/subprocess.html|subprocess]
@@ -75,7 +79,7 @@ class Process:
     optional ``**configuration`` keyword arguments. Configuration arguments
     must be given after other arguments passed to these keywords and must
     use syntax like ``name=value``. Available configuration arguments are
-    listed below and discussed further in sections afterwards.
+    listed below and discussed further in sections afterward.
 
     |  = Name =  |                  = Explanation =                      |
     | shell      | Specifies whether to run the command in shell or not. |
@@ -96,7 +100,7 @@ class Process:
     == Running processes in shell ==
 
     The ``shell`` argument specifies whether to run the process in a shell or
-    not. By default shell is not used, which means that shell specific commands,
+    not. By default, shell is not used, which means that shell specific commands,
     like ``copy`` and ``dir`` on Windows, are not available. You can, however,
     run shell scripts and batch files without using a shell.
 
@@ -114,8 +118,8 @@ class Process:
 
     == Current working directory ==
 
-    By default the child process will be executed in the same directory
-    as the parent process, the process running tests, is executed. This
+    By default, the child process will be executed in the same directory
+    as the parent process, the process running Robot Framework, is executed. This
     can be changed by giving an alternative location using the ``cwd`` argument.
     Forward slashes in the given path are automatically converted to
     backslashes on Windows.
@@ -129,8 +133,8 @@ class Process:
 
     == Environment variables ==
 
-    By default the child process will get a copy of the parent process's
-    environment variables. The ``env`` argument can be used to give the
+    The child process will get a copy of the parent process's environment
+    variables by default. The ``env`` argument can be used to give the
     child a custom environment as a Python dictionary. If there is a need
     to specify only certain environment variable, it is possible to use the
     ``env:<name>=<value>`` format to set or override only that named variables.
@@ -143,13 +147,12 @@ class Process:
 
     == Standard output and error streams ==
 
-    By default processes are run so that their standard output and standard
+    By default, processes are run so that their standard output and standard
     error streams are kept in the memory. This works fine normally,
     but if there is a lot of output, the output buffers may get full and
-    the program can hang. Additionally on Jython, everything written to
-    these in-memory buffers can be lost if the process is terminated.
+    the program can hang.
 
-    To avoid the above mentioned problems, it is possible to use ``stdout``
+    To avoid the above-mentioned problems, it is possible to use ``stdout``
     and ``stderr`` arguments to specify files on the file system where to
     redirect the outputs. This can also be useful if other processes or
     other keywords need to read or manipulate the outputs somehow.
@@ -173,8 +176,6 @@ class Process:
     This way the process will not hang even if there would be a lot of output,
     but naturally output is not available after execution either.
 
-    Support for the special value ``DEVNULL`` is new in Robot Framework 3.2.
-
     Examples:
     | ${result} = | `Run Process` | program | stdout=${TEMPDIR}/stdout.txt | stderr=${TEMPDIR}/stderr.txt |
     | `Log Many`  | stdout: ${result.stdout} | stderr: ${result.stderr} |
@@ -192,25 +193,23 @@ class Process:
     explained in the table below.
 
     | = Value =        | = Explanation = |
-    | String ``PIPE``  | Make stdin a pipe that can be written to. This is the default. |
-    | String ``NONE``  | Inherit stdin from the parent process. This value is case-insensitive. |
+    | String ``NONE``  | Inherit stdin from the parent process. This is the default. |
+    | String ``PIPE``  | Make stdin a pipe that can be written to. |
     | Path to a file   | Open the specified file and use it as the stdin. |
     | Any other string | Create a temporary file with the text as its content and use it as the stdin. |
     | Any non-string value | Used as-is. Could be a file descriptor, stdout of another process, etc. |
 
-    Values ``PIPE`` and ``NONE`` are internally mapped directly to
+    Values ``PIPE`` and ``NONE`` are case-insensitive and internally mapped to
     ``subprocess.PIPE`` and ``None``, respectively, when calling
     [https://docs.python.org/3/library/subprocess.html#subprocess.Popen|subprocess.Popen].
-    The default behavior may change from ``PIPE`` to ``NONE`` in future
-    releases. If you depend on the ``PIPE`` behavior, it is a good idea to use
-    it explicitly.
 
     Examples:
-    | `Run Process` | command | stdin=NONE |
+    | `Run Process` | command | stdin=PIPE |
     | `Run Process` | command | stdin=${CURDIR}/stdin.txt |
     | `Run Process` | command | stdin=Stdin as text. |
 
-    The support to configure ``stdin`` is new in Robot Framework 4.1.2.
+    The support to configure ``stdin`` is new in Robot Framework 4.1.2. Its default
+    value used to be ``PIPE`` until Robot Framework 7.0.
 
     == Output encoding ==
 
@@ -244,16 +243,15 @@ class Process:
 
     = Active process =
 
-    The test library keeps record which of the started processes is currently
-    active. By default it is latest process started with `Start Process`,
-    but `Switch Process` can be used to select a different one. Using
+    The library keeps record which of the started processes is currently active.
+    By default it is the latest process started with `Start Process`,
+    but `Switch Process` can be used to activate a different process. Using
     `Run Process` does not affect the active process.
 
     The keywords that operate on started processes will use the active process
     by default, but it is possible to explicitly select a different process
-    using the ``handle`` argument. The handle can be the identifier returned by
-    `Start Process` or an ``alias`` explicitly given to `Start Process` or
-    `Run Process`.
+    using the ``handle`` argument. The handle can be an ``alias`` explicitly
+    given to `Start Process` or the process object returned by it.
 
     = Result object =
 
@@ -300,8 +298,6 @@ class Process:
     | `Terminate Process` | kill=${EMPTY} | # Empty string is false.       |
     | `Terminate Process` | kill=${FALSE} | # Python ``False`` is false.   |
 
-    Considering ``OFF`` and ``0`` false is new in Robot Framework 3.1.
-
     = Example =
 
     | ***** Settings *****
@@ -339,8 +335,14 @@ class Process:
         configuration` for more details about configuration related to starting
         processes. Configuration related to waiting for processes consists of
         ``timeout`` and ``on_timeout`` arguments that have same semantics as
-        with `Wait For Process` keyword. By default there is no timeout, and
+        with `Wait For Process` keyword. By default, there is no timeout, and
         if timeout is defined the default action on timeout is ``terminate``.
+
+        Process outputs are, by default, written into in-memory buffers.
+        If there is a lot of output, these buffers may get full causing
+        the process to hang. To avoid that, process outputs can be redirected
+        using the ``stdout`` and ``stderr`` configuration parameters. For more
+        information see the `Standard output and error streams` section.
 
         Returns a `result object` containing information about the execution.
 
@@ -351,7 +353,7 @@ class Process:
         Examples:
         | ${result} = | Run Process | python | -c | print('Hello, world!') |
         | Should Be Equal | ${result.stdout} | Hello, world! |
-        | ${result} = | Run Process | ${command} | stderr=STDOUT | timeout=10s |
+        | ${result} = | Run Process | ${command} | stdout=${CURDIR}/stdout.txt | stderr=STDOUT |
         | ${result} = | Run Process | ${command} | timeout=1min | on_timeout=continue |
         | ${result} = | Run Process | java -Dname\\=value Example | shell=True | cwd=${EXAMPLE} |
 
@@ -371,27 +373,54 @@ class Process:
 
         See `Specifying command and arguments` and `Process configuration`
         for more information about the arguments, and `Run Process` keyword
-        for related examples.
+        for related examples. This includes information about redirecting
+        process outputs to avoid process handing due to output buffers getting
+        full.
 
-        Makes the started process new `active process`. Returns an identifier
-        that can be used as a handle to activate the started process if needed.
+        Makes the started process new `active process`. Returns the created
+        [https://docs.python.org/3/library/subprocess.html#popen-constructor |
+        subprocess.Popen] object which can be used later to activate this
+        process. ``Popen`` attributes like ``pid`` can also be accessed directly.
 
         Processes are started so that they create a new process group. This
-        allows sending signals to and terminating also possible child
-        processes. This is not supported on Jython.
+        allows terminating and sending signals to possible child processes.
+
+        Examples:
+
+        Start process and wait for it to end later using an alias:
+        | `Start Process` | ${command} | alias=example |
+        | # Other keywords |
+        | ${result} = | `Wait For Process` | example |
+
+        Use returned ``Popen`` object:
+        | ${process} = | `Start Process` | ${command} |
+        | `Log` | PID: ${process.pid} |
+        | # Other keywords |
+        | ${result} = | `Terminate Process` | ${process} |
+
+        Use started process in a pipeline with another process:
+        | ${process} = | `Start Process` | python | -c | print('Hello, world!') |
+        | ${result} = | `Run Process` | python | -c | import sys; print(sys.stdin.read().upper().strip()) | stdin=${process.stdout} |
+        | `Wait For Process` | ${process} |
+        | `Should Be Equal` | ${result.stdout} | HELLO, WORLD! |
+
+        Returning a ``subprocess.Popen`` object is new in Robot Framework 5.0.
+        Earlier versions returned a generic handle and getting the process object
+        required using `Get Process Object` separately.
         """
         conf = ProcessConfiguration(**configuration)
         command = conf.get_command(command, list(arguments))
         self._log_start(command, conf)
         process = subprocess.Popen(command, **conf.popen_config)
         self._results[process] = ExecutionResult(process, **conf.result_config)
-        return self._processes.register(process, alias=conf.alias)
+        self._processes.register(process, alias=conf.alias)
+        return self._processes.current
 
     def _log_start(self, command, config):
         if is_list_like(command):
             command = self.join_command_line(command)
-        logger.info('Starting process:\n%s' % system_decode(command))
-        logger.debug('Process configuration:\n%s' % config)
+        logger.info(f'Starting process:\n{system_decode(command)}')
+        logger.debug(f'Process configuration:\n{config}')
 
     def is_process_running(self, handle=None):
         """Checks is the process running or not.
@@ -469,17 +498,13 @@ class Process:
         | ${result} =                 | Wait For Process | timeout=1min 30s | on_timeout=kill |
         | Process Should Be Stopped   |                  |                  |
         | Should Be Equal As Integers | ${result.rc}     | -9               |
-
-        Ignoring timeout if it is string ``NONE``, zero, or negative is new
-        in Robot Framework 3.2.
         """
         process = self._processes[handle]
         logger.info('Waiting for process to complete.')
         timeout = self._get_timeout(timeout)
         if timeout > 0:
             if not self._process_is_stopped(process, timeout):
-                logger.info('Process did not complete in %s.'
-                            % secs_to_timestr(timeout))
+                logger.info(f'Process did not complete in {secs_to_timestr(timeout)}.')
                 return self._manage_process_timeout(handle, on_timeout.lower())
         return self._wait(process)
 
@@ -532,9 +557,6 @@ class Process:
         | Terminate Process           | myproc            | kill=true |
 
         Limitations:
-        - Graceful termination is not supported on Windows when using Jython.
-          Process is killed instead.
-        - Stopping the whole process group is not supported when using Jython.
         - On Windows forceful kill only stops the main process, not possible
           child processes.
         """
@@ -614,14 +636,13 @@ class Process:
         does the shell propagate the signal to the actual started process.
 
         To send the signal to the whole process group, ``group`` argument can
-        be set to any true value (see `Boolean arguments`). This is not
-        supported by Jython, however.
+        be set to any true value (see `Boolean arguments`).
         """
         if os.sep == '\\':
             raise RuntimeError('This keyword does not work on Windows.')
         process = self._processes[handle]
         signum = self._get_signal_number(signal)
-        logger.info('Sending signal %s (%d).' % (signal, signum))
+        logger.info(f'Sending signal {signal} ({signum}).')
         if is_truthy(group) and hasattr(os, 'killpg'):
             os.killpg(process.pid, signum)
         elif hasattr(process, 'send_signal'):
@@ -641,15 +662,16 @@ class Process:
             return getattr(signal_module,
                            name if name.startswith('SIG') else 'SIG' + name)
         except AttributeError:
-            raise RuntimeError("Unsupported signal '%s'." % name)
+            raise RuntimeError(f"Unsupported signal '{name}'.")
 
     def get_process_id(self, handle=None):
         """Returns the process ID (pid) of the process as an integer.
 
         If ``handle`` is not given, uses the current `active process`.
 
-        Notice that the pid is not the same as the handle returned by
-        `Start Process` that is used internally by this library.
+        Starting from Robot Framework 5.0, it is also possible to directly access
+        the ``pid`` attribute of the ``subprocess.Popen`` object returned by
+        `Start Process` like ``${process.pid}``.
         """
         return self._processes[handle].pid
 
@@ -657,6 +679,10 @@ class Process:
         """Return the underlying ``subprocess.Popen`` object.
 
         If ``handle`` is not given, uses the current `active process`.
+
+        Starting from Robot Framework 5.0, `Start Process` returns the created
+        ``subprocess.Popen`` object, not a generic handle, making this keyword
+        mostly redundant.
         """
         return self._processes[handle]
 
@@ -745,10 +771,12 @@ class Process:
         """Splits command line string into a list of arguments.
 
         String is split from spaces, but argument surrounded in quotes may
-        contain spaces in them. If ``escaping`` is given a true value, then
-        backslash is treated as an escape character. It can escape unquoted
-        spaces, quotes inside quotes, and so on, but it also requires using
-        double backslashes when using Windows paths.
+        contain spaces in them.
+
+        If ``escaping`` is given a true value, then backslash is treated as
+        an escape character. It can escape unquoted spaces, quotes inside
+        quotes, and so on, but it also requires using doubling backslashes
+        in Windows paths and elsewhere.
 
         Examples:
         | @{cmd} = | Split Command Line | --option "value with spaces" |
@@ -763,7 +791,7 @@ class Process:
         arguments containing spaces are surrounded with quotes, and possible
         quotes are escaped with a backslash.
 
-        If this keyword is given only one argument and that is a list like
+        If this keyword is given only one argument and that is a list-like
         object, then the values of that list are joined instead.
 
         Example:
@@ -772,7 +800,7 @@ class Process:
         """
         if len(args) == 1 and is_list_like(args[0]):
             args = args[0]
-        return subprocess.list2cmdline(args)
+        return subprocess.list2cmdline(str(a) for a in args)
 
 
 class ExecutionResult:
@@ -820,8 +848,8 @@ class ExecutionResult:
             return ''
         try:
             content = stream.read()
-        except IOError:  # http://bugs.jython.org/issue2218
-            return ''
+        except IOError:
+            content = ''
         finally:
             if stream_path:
                 stream.close()
@@ -852,14 +880,14 @@ class ExecutionResult:
         return [stdin, stdout, stderr]
 
     def __str__(self):
-        return '<result object with rc %d>' % self.rc
+        return f'<result object with rc {self.rc}>'
 
 
 class ProcessConfiguration:
 
-    def __init__(self, cwd=None, shell=False, stdout=None, stderr=None, stdin='PIPE',
+    def __init__(self, cwd=None, shell=False, stdout=None, stderr=None, stdin=None,
                  output_encoding='CONSOLE', alias=None, env=None, **rest):
-        self.cwd = self._get_cwd(cwd)
+        self.cwd = os.path.normpath(cwd) if cwd else os.path.abspath('.')
         self.shell = is_truthy(shell)
         self.alias = alias
         self.output_encoding = output_encoding
@@ -868,17 +896,12 @@ class ProcessConfiguration:
         self.stdin_stream = self._get_stdin(stdin)
         self.env = self._construct_env(env, rest)
 
-    def _get_cwd(self, cwd):
-        if cwd:
-            return cwd.replace('/', os.sep)
-        return abspath('.')
-
     def _new_stream(self, name):
         if name == 'DEVNULL':
-            return open(os.devnull, 'w')
+            return open(os.devnull, 'w', encoding=LOCALE_ENCODING)
         if name:
             path = os.path.normpath(os.path.join(self.cwd, name))
-            return open(path, 'w')
+            return open(path, 'w', encoding=LOCALE_ENCODING)
         return subprocess.PIPE
 
     def _get_stderr(self, stderr, stdout, stdout_stream):
@@ -889,19 +912,19 @@ class ProcessConfiguration:
         return self._new_stream(stderr)
 
     def _get_stdin(self, stdin):
-        if not is_string(stdin):
+        if is_pathlike(stdin):
+            stdin = str(stdin)
+        elif not is_string(stdin):
             return stdin
-        if stdin.upper() == 'NONE':
+        elif stdin.upper() == 'NONE':
             return None
-        if stdin == 'PIPE':
+        elif stdin == 'PIPE':
             return subprocess.PIPE
         path = os.path.normpath(os.path.join(self.cwd, stdin))
         if os.path.isfile(path):
-            return open(path)
+            return open(path, encoding=LOCALE_ENCODING)
         stdin_file = TemporaryFile()
-        if is_unicode(stdin):
-            stdin = console_encode(stdin, self.output_encoding, force=True)
-        stdin_file.write(stdin)
+        stdin_file.write(console_encode(stdin, self.output_encoding, force=True))
         stdin_file.seek(0)
         return stdin_file
 
@@ -924,11 +947,11 @@ class ProcessConfiguration:
         return None
 
     def _add_to_env(self, env, extra):
-        for key in extra:
-            if not key.startswith('env:'):
-                raise RuntimeError("Keyword argument '%s' is not supported by "
-                                   "this keyword." % key)
-            env[system_encode(key[4:])] = system_encode(extra[key])
+        for name in extra:
+            if not name.startswith('env:'):
+                raise RuntimeError(f"Keyword argument '{name}' is not supported by "
+                                   f"this keyword.")
+            env[system_encode(name[4:])] = system_encode(extra[name])
 
     def get_command(self, command, arguments):
         command = [system_encode(item) for item in [command] + arguments]
@@ -967,20 +990,14 @@ class ProcessConfiguration:
                 'output_encoding': self.output_encoding}
 
     def __str__(self):
-        return """\
-cwd:     %s
-shell:   %s
-stdout:  %s
-stderr:  %s
-stdin:   %s
-alias:   %s
-env:     %s""" % (self.cwd,
-                  self.shell,
-                  self._stream_name(self.stdout_stream),
-                  self._stream_name(self.stderr_stream),
-                  self._stream_name(self.stdin_stream),
-                  self.alias,
-                  self.env)
+        return f'''\
+cwd:     {self.cwd}
+shell:   {self.shell}
+stdout:  {self._stream_name(self.stdout_stream)}
+stderr:  {self._stream_name(self.stderr_stream)}
+stdin:   {self._stream_name(self.stdin_stream)}
+alias:   {self.alias}
+env:     {self.env}'''
 
     def _stream_name(self, stream):
         if hasattr(stream, 'name'):

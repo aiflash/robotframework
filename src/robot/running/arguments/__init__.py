@@ -16,5 +16,8 @@
 from .argumentmapper import DefaultValue
 from .argumentparser import (DynamicArgumentParser, PythonArgumentParser,
                              UserKeywordArgumentParser)
-from .argumentspec import ArgumentSpec, ArgInfo
+from .argumentspec import ArgInfo, ArgumentSpec
 from .embedded import EmbeddedArguments
+from .customconverters import CustomArgumentConverters
+from .typeconverters import TypeConverter
+from .typeinfo import TypeInfo

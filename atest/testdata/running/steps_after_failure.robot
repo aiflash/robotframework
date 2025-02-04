@@ -15,6 +15,16 @@ User keyword after failure
     Fail    This fails
     User keyword
 
+Non-existing keyword after failure
+    [Documentation]    FAIL    This fails
+    Fail    This fails
+    This does not exist
+
+Invalid keyword usage after failure
+    [Documentation]    FAIL    This fails
+    Fail    This fails
+    No Operation    with    too    many    args
+
 Assignment after failure
     [Documentation]    FAIL    This fails
     Fail    This fails
@@ -32,12 +42,66 @@ IF after failure
         ${x} =    Fail    This should not be run
     END
 
+GROUP after failure
+    [Documentation]    FAIL    This fails
+    Fail    This fails
+    GROUP    Group Name
+        Fail    This should not be run
+        ${x} =    Fail    This should not be run
+    END
+
 FOR after failure
     [Documentation]    FAIL    This fails
     Fail    This fails
     FOR    ${x}    IN    1    2    3
         Fail    This should not be run
         ${x}    Fail    This should not be run either
+    END
+
+TRY after failure
+    [Documentation]    FAIL    This fails
+    Fail    This fails
+    TRY
+        Fail    This should not be run
+    EXCEPT    ${nonex}
+        ${x}    Fail    This should not be run either
+    ELSE
+        Neither should ELSE
+    FINALLY
+        Nor FINALLY
+    END
+
+WHILE after failure
+    [Documentation]    FAIL    This fails
+    Fail    This fails
+    WHILE    False
+        Fail    This should not be run
+        ${x}    Fail    This should not be run either
+        Neither should this
+    END
+    WHILE    True
+        Fail    This should not be run
+        Neither should this
+    END
+    WHILE    whatever
+        Fail    This should not be run
+    END
+
+RETURN after failure
+    [Documentation]    FAIL    This fails
+    ${result} =    RETURN after failure
+    Fail    ${result}
+
+BREAK and CONTINUE after failure
+    [Documentation]    FAIL    This fails
+    WHILE    True
+        Fail    This fails
+        CONTINUE
+        BREAK
+    END
+    WHILE    whatever
+        CONTINUE
+        BREAK
     END
 
 Nested control structure after failure
@@ -47,26 +111,26 @@ Nested control structure after failure
         IF    True
             FOR    ${y}    IN RANGE    ${x}
                 Fail    This should not be run
-                Fail    This should not be run
-                Fail    This should not be run
+                GROUP    This should not be run
+                    Fail    This should not be run
+                    Fail    This should not be run
+                END
             END
             Fail    This should not be run
         ELSE
-            Fail    This should not be run
+            WHILE    whatever
+                Fail    This should not be run
+                Neither should this
+            END
+            TRY
+                Not run
+            EXCEPT    Whatever
+                BREAK
+            END
         END
         Fail    This should not be run
     END
     Fail    This should not be run
-
-Non-existing keyword after failure
-    [Documentation]    FAIL    This fails
-    Fail    This fails
-    This does not exist
-
-Invalid keyword usage after failure
-    [Documentation]    FAIL    This fails
-    Fail    This fails
-    No Operation    with    too    many    args
 
 Failure in user keyword
     [Documentation]    FAIL    This fails
@@ -105,6 +169,20 @@ Failure in ELSE branch
     END
     Fail    This should not be run
 
+Failure in GROUP
+    [Documentation]    FAIL    This fails
+    GROUP    Group Name 0
+        GROUP    Group Name 0,0
+            Fail    This fails
+            Fail    This should not be run
+        END
+        Fail    This should not be run
+        GROUP    Group Name 0,1
+            Fail    This should not be run
+        END
+    END
+    Fail    This should not be run
+
 Failure in FOR iteration
     [Documentation]    FAIL    This fails
     FOR    ${x}    IN RANGE    100
@@ -121,3 +199,8 @@ In user keyword
     Fail    This fails
     Fail    This should not be run
     Fail    This should not be run
+
+RETURN after failure
+    Fail    This fails
+    RETURN    ${not evaluated}
+    Not executed

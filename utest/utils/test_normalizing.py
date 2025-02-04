@@ -28,9 +28,15 @@ class TestNormalize(unittest.TestCase):
         self._verify('Fo o BaR', 'foobar', caseless=True)
 
     def test_caseless_non_ascii(self):
-        self._verify('\xc4iti', '\xc4iti', caseless=False)
-        for mother in ['\xc4ITI', '\xc4iTi', '\xe4iti', '\xe4iTi']:
-            self._verify(mother, '\xe4iti', caseless=True)
+        self._verify('Äiti', 'Äiti', caseless=False)
+        for mother in ['ÄITI', 'ÄiTi', 'äiti', 'äiTi']:
+            self._verify(mother, 'äiti', caseless=True)
+
+    def test_casefold(self):
+        self._verify('ß', 'ss', caseless=True)
+        self._verify('Straße', 'strasse', caseless=True)
+        self._verify('Straße', 'strae', ignore='ß', caseless=True)
+        self._verify('Straße', 'trae', ignore='s', caseless=True)
 
     def test_spaceless(self):
         self._verify('Fo o BaR', 'fo o bar', spaceless=False)
@@ -44,13 +50,6 @@ class TestNormalize(unittest.TestCase):
         self._verify('Foo_ bar', 'bar', ignore=['_', 'F', 'O'])
         self._verify('Foo_ bar', 'Fbar', ignore=['_', 'f', 'o'], caseless=False)
         self._verify('Foo_\n bar\n', 'foo_ bar', ignore=['\n'], spaceless=False)
-
-    def test_bytes(self):
-        self._verify(b'FOO & Bar', b'foo&bar')
-        self._verify(b'FOO & Bar', b'oobar', ignore=[b'F', b'&'])
-        self._verify(b'FOO & Bar', b'oo  bar', ignore=[b'F', b'&'], spaceless=False)
-        self._verify(b'FOO & Bar', b'bar', ignore=b'F&o')
-        self._verify(b'FOO & Bar', b'OOBar', ignore=b'F&o', caseless=False)
 
     def test_string_subclass_without_compatible_init(self):
         class BrokenLikeSudsText(str):
@@ -81,10 +80,16 @@ class TestNormalizedDict(unittest.TestCase):
         assert_equal(nd['K EY'], 'value')
         assert_equal(nd['foo'], 'bar')
 
+    def test_initial_values_as_generator(self):
+        nd = NormalizedDict((item for item in [('key', 'value'), ('F O\tO', 'bar')]))
+        assert_equal(nd['key'], 'value')
+        assert_equal(nd['K EY'], 'value')
+        assert_equal(nd['foo'], 'bar')
+
     def test_setdefault(self):
         nd = NormalizedDict({'a': NormalizedDict()})
-        nd.setdefault('a', 'whatever').setdefault('B', []).append(1)
-        nd.setdefault('A', 'everwhat').setdefault('b', []).append(2)
+        nd.setdefault('a').setdefault('B', []).append(1)
+        nd.setdefault('A', 'whatever').setdefault('b', []).append(2)
         assert_equal(nd['a']['b'], [1, 2])
         assert_equal(list(nd), ['a'])
         assert_equal(list(nd['a']), ['B'])
@@ -113,13 +118,13 @@ class TestNormalizedDict(unittest.TestCase):
             assert_true(key not in nd2)
 
     def test_caseless_with_non_ascii(self):
-        nd1 = NormalizedDict({'\xe4': 1})
-        assert_equal(nd1['\xe4'], 1)
-        assert_equal(nd1['\xc4'], 1)
-        assert_true('\xc4' in nd1)
-        nd2 = NormalizedDict({'\xe4': 1}, caseless=False)
-        assert_equal(nd2['\xe4'], 1)
-        assert_true('\xc4' not in nd2)
+        nd1 = NormalizedDict({'ä': 1})
+        assert_equal(nd1['ä'], 1)
+        assert_equal(nd1['Ä'], 1)
+        assert_true('Ä' in nd1)
+        nd2 = NormalizedDict({'ä': 1}, caseless=False)
+        assert_equal(nd2['ä'], 1)
+        assert_true('Ä' not in nd2)
 
     def test_contains(self):
         nd = NormalizedDict({'Foo': 'bar'})
@@ -162,7 +167,7 @@ class TestNormalizedDict(unittest.TestCase):
     def test_len(self):
         nd = NormalizedDict()
         assert_equal(len(nd), 0)
-        nd['a'] = nd['b'] = nd['c'] = 1
+        nd['a'] = nd['b'] = nd['B'] = nd['c'] = 'x'
         assert_equal(len(nd), 3)
 
     def test_truth_value(self):
@@ -183,14 +188,25 @@ class TestNormalizedDict(unittest.TestCase):
         assert_equal(cd._keys, {'a': 'a', 'b': 'B'})
         assert_equal(cd._data, {'a': 1, 'b': 2})
 
+    def test_copy_with_subclass(self):
+        class SubClass(NormalizedDict):
+            pass
+        assert_true(isinstance(SubClass().copy(), SubClass))
+
     def test_str(self):
-        nd = NormalizedDict({'a': 1, 'B': 1, 'c': 3, 'd': 4, 'E': 5, 'F': 6})
-        expected = "{'a': 1, 'B': 1, 'c': 3, 'd': 4, 'E': 5, 'F': 6}"
+        nd = NormalizedDict({'a': 1, 'B': 2, 'c': '3', 'd': '"', 'E': 5, 'F': 6})
+        expected = "{'a': 1, 'B': 2, 'c': '3', 'd': '\"', 'E': 5, 'F': 6}"
         assert_equal(str(nd), expected)
 
+    def test_repr(self):
+        assert_equal(repr(NormalizedDict()), 'NormalizedDict()')
+        assert_equal(repr(NormalizedDict({'a': None, 'b': '"', 'A': 1})),
+                     "NormalizedDict({'a': 1, 'b': '\"'})")
+        assert_equal(repr(type('Extend', (NormalizedDict,), {})()), 'Extend()')
+
     def test_unicode(self):
-        nd = NormalizedDict({'a': '\xe4', '\xe4': 'a'})
-        assert_equal(str(nd), "{'a': '\xe4', '\xe4': 'a'}")
+        nd = NormalizedDict({'a': 'ä', 'ä': 'a'})
+        assert_equal(str(nd), "{'a': 'ä', 'ä': 'a'}")
 
     def test_update(self):
         nd = NormalizedDict({'a': 1, 'b': 1, 'c': 1})
@@ -236,6 +252,7 @@ class TestNormalizedDict(unittest.TestCase):
     def test_keys_are_sorted(self):
         nd = NormalizedDict((c, None) for c in 'aBcDeFg123XyZ___')
         assert_equal(list(nd.keys()), list('123_aBcDeFgXyZ'))
+        assert_equal(list(nd), list('123_aBcDeFgXyZ'))
 
     def test_keys_values_and_items_are_returned_in_same_order(self):
         nd = NormalizedDict()

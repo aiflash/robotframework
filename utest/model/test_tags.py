@@ -28,6 +28,13 @@ class TestTags(unittest.TestCase):
     def test_init_with_none(self):
         assert_equal(list(Tags(None)), [])
 
+    def test_robot(self):
+        assert_equal(Tags().robot('x'), False)
+        assert_equal(Tags('robot:x').robot('x'), True)
+        assert_equal(Tags(['ROBOT : X']).robot('x'), True)
+        assert_equal(Tags('robot:x:y').robot('x:y'), True)
+        assert_equal(Tags('robot:x').robot('y'), False)
+
     def test_add_string(self):
         tags = Tags(['Y'])
         tags.add('x')
@@ -92,10 +99,10 @@ class TestTags(unittest.TestCase):
     def test_str(self):
         assert_equal(str(Tags()), '[]')
         assert_equal(str(Tags(['y', "X'X", 'Y'])), "[X'X, y]")
-        assert_equal(str(Tags(['\xe4', 'a'])), '[a, \xe4]')
+        assert_equal(str(Tags(['ä', 'a'])), '[a, ä]')
 
     def test_repr(self):
-        for tags in ([], ['y', "X'X"], ['\xe4', 'a']):
+        for tags in ([], ['y', "X'X"], ['ä', 'a']):
             assert_equal(repr(Tags(tags)), repr(sorted(tags)))
 
     def test__add__list(self):
@@ -143,9 +150,17 @@ class TestTags(unittest.TestCase):
     def test__eq__(self):
         assert_equal(Tags(['x']), Tags(['x']))
         assert_equal(Tags(['X']), Tags(['x']))
-        assert_equal(Tags(['X']), Tags(('x',)))
-        assert_not_equal(Tags(['X']), ['x'])
-        assert_not_equal(Tags(['X']), ('x',))
+        assert_equal(Tags(['X', 'YZ']), Tags(('x', 'y_z')))
+        assert_not_equal(Tags(['X']), Tags(['Y']))
+
+    def test__eq__converts_other_to_tags(self):
+        assert_equal(Tags(['X']), ['x'])
+        assert_equal(Tags(['X']), 'x')
+        assert_not_equal(Tags(['X']), 'y')
+
+    def test__eq__with_other_that_cannot_be_converted_to_tags(self):
+        assert_not_equal(Tags(), 1)
+        assert_not_equal(Tags(), None)
 
     def test__eq__normalized(self):
         assert_equal(Tags(['Hello world', 'Foo', 'Not_world']),
@@ -235,7 +250,7 @@ class TestTagPatterns(unittest.TestCase):
     def test_ands_and_ors(self):
         for pattern in AndOrPatternGenerator(max_length=5):
             expected = eval(pattern.lower())
-            assert_equal(TagPattern(pattern).match('1'), expected)
+            assert_equal(TagPattern.from_string(pattern).match('1'), expected)
 
     def test_not(self):
         patterns = TagPatterns(['xNOTy', '???NOT?'])
@@ -325,21 +340,27 @@ class TestTagPatterns(unittest.TestCase):
         for pattern in ['a', 'NOT a', 'a NOT b', 'a AND b', 'a OR b', 'a*',
                         'a OR b NOT c OR d AND e OR ??']:
             assert_equal(str(TagPatterns(pattern)),
-                         '[%s]' % pattern)
+                         f'[{pattern}]')
             assert_equal(str(TagPatterns(pattern.replace(' ', ''))),
-                         '[%s]' % pattern)
+                         f'[{pattern}]')
             assert_equal(str(TagPatterns([pattern, 'x', pattern, 'y'])),
-                         '[%s, x, y]' % pattern)
+                         f'[{pattern}, x, y]')
 
-    def test_unicode(self):
-        pattern = '\xe4 OR \xe5 NOT \xe6 AND \u2603 OR ??'
-        expected = '[%s]' % pattern
+    def test_non_ascii(self):
+        pattern = 'ä OR å NOT æ AND ☃ OR ??'
+        expected = f'[{pattern}]'
         assert_equal(str(TagPatterns(pattern)), expected)
         assert_equal(str(TagPatterns(pattern.replace(' ', ''))), expected)
 
     def test_seq2str(self):
-        patterns = TagPatterns(['is\xe4', '\xe4iti'])
-        assert_equal(seq2str(patterns), "'is\xe4' and '\xe4iti'")
+        patterns = TagPatterns(['isä', 'äiti'])
+        assert_equal(seq2str(patterns), "'isä' and 'äiti'")
+
+    def test_is_constant(self):
+        for true in [], ['x'], ['a', 'b', 'c']:
+            assert_true(TagPatterns(true).is_constant)
+        for false in ['x*'], ['x', 'y?'], ['[abc]'], ['xORy'], ['xANDy'], ['x', 'NOTy']:
+            assert_false(TagPatterns(false).is_constant)
 
 
 class AndOrPatternGenerator:

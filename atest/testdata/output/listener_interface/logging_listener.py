@@ -4,16 +4,29 @@ from robot.api import logger
 
 ROBOT_LISTENER_API_VERSION = 2
 
+RECURSION = False
+
 
 def get_logging_listener_method(name):
+
     def listener_method(*args):
+        global RECURSION
+        if RECURSION:
+            return
+        RECURSION = True
         if name in ['message', 'log_message']:
             msg = args[0]
-            message = '%s: %s %s' % (name, msg['level'], msg['message'])
+            message = f"{name}: {msg['level']} {msg['message']}"
+        elif name == 'start_keyword':
+            message = f"start {args[1]['type']}".lower()
+        elif name == 'end_keyword':
+            message = f"end {args[1]['type']}".lower()
         else:
             message = name
         logging.info(message)
         logger.warn(message)
+        RECURSION = False
+
     return listener_method
 
 

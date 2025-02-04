@@ -4,6 +4,7 @@ import tempfile
 from io import StringIO
 from pathlib import Path
 
+from robot.conf import Language, Languages
 from robot.utils.asserts import assert_equal
 from robot.parsing import get_tokens, get_init_tokens, get_resource_tokens, Token
 
@@ -40,7 +41,9 @@ suite teardown    Log    <b>The End.</b>    WARN    html=True
 Test Setup        None Shall Pass    ${NONE}
 TEST TEARDOWN     No Operation
 Test Timeout      1 day
-Force Tags        foo    bar
+Test Tags         foo    bar
+Keyword Tags      tag
+Name              Custom Suite Name
 '''
         expected = [
             (T.SETTING_HEADER, '*** Settings ***', 1, 0),
@@ -79,10 +82,16 @@ Force Tags        foo    bar
             (T.TEST_TIMEOUT, 'Test Timeout', 10, 0),
             (T.ARGUMENT, '1 day', 10, 18),
             (T.EOS, '', 10, 23),
-            (T.FORCE_TAGS, 'Force Tags', 11, 0),
+            (T.TEST_TAGS, 'Test Tags', 11, 0),
             (T.ARGUMENT, 'foo', 11, 18),
             (T.ARGUMENT, 'bar', 11, 25),
             (T.EOS, '', 11, 28),
+            (T.KEYWORD_TAGS, 'Keyword Tags', 12, 0),
+            (T.ARGUMENT, 'tag', 12, 18),
+            (T.EOS, '', 12, 21),
+            (T.SUITE_NAME, 'Name', 13, 0),
+            (T.ARGUMENT, 'Custom Suite Name', 13, 18),
+            (T.EOS, '', 13, 35)
         ]
         assert_tokens(data, expected, get_tokens, data_only=True)
         assert_tokens(data, expected, get_init_tokens, data_only=True)
@@ -91,7 +100,7 @@ Force Tags        foo    bar
         data = '''\
 *** Settings ***
 Test Template     Not allowed in init file
-Force Tags        Allowed in both
+Test Tags         Allowed in both
 Default Tags      Not allowed in init file
 '''
         expected = [
@@ -100,7 +109,7 @@ Default Tags      Not allowed in init file
             (T.TEST_TEMPLATE, 'Test Template', 2, 0),
             (T.NAME, 'Not allowed in init file', 2, 18),
             (T.EOS, '', 2, 42),
-            (T.FORCE_TAGS, 'Force Tags', 3, 0),
+            (T.TEST_TAGS, 'Test Tags', 3, 0),
             (T.ARGUMENT, 'Allowed in both', 3, 18),
             (T.EOS, '', 3, 33),
             (T.DEFAULT_TAGS, 'Default Tags', 4, 0),
@@ -115,7 +124,7 @@ Default Tags      Not allowed in init file
             (T.ERROR, 'Test Template', 2, 0,
              "Setting 'Test Template' is not allowed in suite initialization file."),
             (T.EOS, '', 2, 13),
-            (T.FORCE_TAGS, 'Force Tags', 3, 0),
+            (T.TEST_TAGS, 'Test Tags', 3, 0),
             (T.ARGUMENT, 'Allowed in both', 3, 18),
             (T.EOS, '', 3, 33),
             (T.ERROR, 'Default Tags', 4, 0,
@@ -134,9 +143,11 @@ Test Setup        None Shall Pass    ${NONE}
 TEST TEARDOWN     No Operation
 Test Template     NONE
 Test Timeout      1 day
-Force Tags        foo    bar
+Test Tags         foo    bar
 Default Tags      zap
+Task Tags         quux
 Documentation     Valid in all data files.
+Name              Bad Resource Name
 '''
         # Values of invalid settings are ignored with `data_only=True`.
         expected = [
@@ -163,15 +174,21 @@ Documentation     Valid in all data files.
             (T.ERROR, 'Test Timeout', 8, 0,
              "Setting 'Test Timeout' is not allowed in resource file."),
             (T.EOS, '', 8, 12),
-            (T.ERROR, 'Force Tags', 9, 0,
-             "Setting 'Force Tags' is not allowed in resource file."),
-            (T.EOS, '', 9, 10),
+            (T.ERROR, 'Test Tags', 9, 0,
+             "Setting 'Test Tags' is not allowed in resource file."),
+            (T.EOS, '', 9, 9),
             (T.ERROR, 'Default Tags', 10, 0,
              "Setting 'Default Tags' is not allowed in resource file."),
             (T.EOS, '', 10, 12),
-            (T.DOCUMENTATION, 'Documentation', 11, 0),
-            (T.ARGUMENT, 'Valid in all data files.', 11, 18),
-            (T.EOS, '', 11, 42)
+            (T.ERROR, 'Task Tags', 11, 0,
+             "Setting 'Task Tags' is not allowed in resource file."),
+            (T.EOS, '', 11, 9),
+            (T.DOCUMENTATION, 'Documentation', 12, 0),
+            (T.ARGUMENT, 'Valid in all data files.', 12, 18),
+            (T.EOS, '', 12, 42),
+            (T.ERROR, "Name", 13, 0,
+             "Setting 'Name' is not allowed in resource file."),
+            (T.EOS, '', 13, 4)
         ]
         assert_tokens(data, expected, get_resource_tokens, data_only=True)
 
@@ -212,37 +229,37 @@ VariAbles         variables.py    arg
         assert_tokens(data, expected, get_init_tokens, data_only=True)
         assert_tokens(data, expected, get_resource_tokens, data_only=True)
 
-    def test_with_name(self):
+    def test_aliasing_with_as(self):
         data = '''\
 *** Settings ***
-Library         Easter                       WITH NAME    Christmas
-Library         Arguments    arg             WITH NAME    One argument
+Library         Easter                       AS    Christmas
+Library         Arguments    arg             AS    One argument
 Library         Arguments    arg1    arg2
-...                          arg3    arg4    WITH NAME    Four arguments
+...                          arg3    arg4    AS    Four arguments
 '''
         expected = [
             (T.SETTING_HEADER, '*** Settings ***', 1, 0),
             (T.EOS, '', 1, 16),
             (T.LIBRARY, 'Library', 2, 0),
             (T.NAME, 'Easter', 2, 16),
-            (T.WITH_NAME, 'WITH NAME', 2, 45),
-            (T.NAME, 'Christmas', 2, 58),
-            (T.EOS, '', 2, 67),
+            (T.AS, 'AS', 2, 45),
+            (T.NAME, 'Christmas', 2, 51),
+            (T.EOS, '', 2, 60),
             (T.LIBRARY, 'Library', 3, 0),
             (T.NAME, 'Arguments', 3, 16),
             (T.ARGUMENT, 'arg', 3, 29),
-            (T.WITH_NAME, 'WITH NAME', 3, 45),
-            (T.NAME, 'One argument', 3, 58),
-            (T.EOS, '', 3, 70),
+            (T.AS, 'AS', 3, 45),
+            (T.NAME, 'One argument', 3, 51),
+            (T.EOS, '', 3, 63),
             (T.LIBRARY, 'Library', 4, 0),
             (T.NAME, 'Arguments', 4, 16),
             (T.ARGUMENT, 'arg1', 4, 29),
             (T.ARGUMENT, 'arg2', 4, 37),
             (T.ARGUMENT, 'arg3', 5, 29),
             (T.ARGUMENT, 'arg4', 5, 37),
-            (T.WITH_NAME, 'WITH NAME', 5, 45),
-            (T.NAME, 'Four arguments', 5, 58),
-            (T.EOS, '', 5, 72)
+            (T.AS, 'AS', 5, 45),
+            (T.NAME, 'Four arguments', 5, 51),
+            (T.EOS, '', 5, 65)
         ]
         assert_tokens(data, expected, get_tokens, data_only=True)
         assert_tokens(data, expected, get_init_tokens, data_only=True)
@@ -281,6 +298,7 @@ Libra ry      Smallish typo gives us recommendations!
 Resource         Too    many   values
 Test Timeout     Too    much
 Test Template    1    2    3    4    5
+NaMe             This    is    an    invalid    name
 '''
         # Values of invalid settings are ignored with `data_only=True`.
         expected = [
@@ -295,6 +313,9 @@ Test Template    1    2    3    4    5
             (T.ERROR, 'Test Template', 4, 0,
              "Setting 'Test Template' accepts only one value, got 5."),
             (T.EOS, '', 4, 13),
+            (T.ERROR, 'NaMe', 5, 0,
+             "Setting 'NaMe' accepts only one value, got 5."),
+            (T.EOS, '', 5, 4),
         ]
         assert_tokens(data, expected, data_only=True)
 
@@ -315,10 +336,12 @@ Test Template     Used
 Test Template     Ignored
 Test Timeout      Used
 Test Timeout      Ignored
-Force Tags        Used
-Force Tags        Ignored
+Test Tags         Used
+Test Tags         Ignored
 Default Tags      Used
 Default Tags      Ignored
+Name              Used
+Name              Ignored
 '''
         # Values of invalid settings are ignored with `data_only=True`.
         expected = [
@@ -366,18 +389,24 @@ Default Tags      Ignored
             (T.ERROR, 'Test Timeout', 15, 0,
              "Setting 'Test Timeout' is allowed only once. Only the first value is used."),
             (T.EOS, '', 15, 12),
-            (T.FORCE_TAGS, 'Force Tags', 16, 0),
+            (T.TEST_TAGS, 'Test Tags', 16, 0),
             (T.ARGUMENT, 'Used', 16, 18),
             (T.EOS, '', 16, 22),
-            (T.ERROR, 'Force Tags', 17, 0,
-             "Setting 'Force Tags' is allowed only once. Only the first value is used."),
-            (T.EOS, '', 17, 10),
+            (T.ERROR, 'Test Tags', 17, 0,
+             "Setting 'Test Tags' is allowed only once. Only the first value is used."),
+            (T.EOS, '', 17, 9),
             (T.DEFAULT_TAGS, 'Default Tags', 18, 0),
             (T.ARGUMENT, 'Used', 18, 18),
             (T.EOS, '', 18, 22),
             (T.ERROR, 'Default Tags', 19, 0,
              "Setting 'Default Tags' is allowed only once. Only the first value is used."),
-            (T.EOS, '', 19, 12)
+            (T.EOS, '', 19, 12),
+            ("SUITE NAME", 'Name', 20, 0),
+            (T.ARGUMENT, 'Used', 20, 18),
+            (T.EOS, '', 20, 22),
+            (T.ERROR, 'Name', 21, 0,
+             "Setting 'Name' is allowed only once. Only the first value is used."),
+            (T.EOS, '', 21, 4)
         ]
         assert_tokens(data, expected, data_only=True)
 
@@ -435,6 +464,7 @@ Name
     [Documentation]    Doc    in multiple
     ...                parts
     [Tags]             first    second
+    [Setup]            Log    New in RF 7!
     [Teardown]         No Operation
     [Timeout]          ${TIMEOUT}
     [Return]           Value
@@ -459,15 +489,20 @@ Name
             (T.ARGUMENT, 'first', 6, 23),
             (T.ARGUMENT, 'second', 6, 32),
             (T.EOS, '', 6, 38),
-            (T.TEARDOWN, '[Teardown]', 7, 4),
-            (T.NAME, 'No Operation', 7, 23),
-            (T.EOS, '', 7, 35),
-            (T.TIMEOUT, '[Timeout]', 8, 4),
-            (T.ARGUMENT, '${TIMEOUT}', 8, 23),
-            (T.EOS, '', 8, 33),
-            (T.RETURN, '[Return]', 9, 4),
-            (T.ARGUMENT, 'Value', 9, 23),
-            (T.EOS, '', 9, 28)
+            (T.SETUP, '[Setup]', 7, 4),
+            (T.NAME, 'Log', 7, 23),
+            (T.ARGUMENT, 'New in RF 7!', 7, 30),
+            (T.EOS, '', 7, 42),
+            (T.TEARDOWN, '[Teardown]', 8, 4),
+            (T.NAME, 'No Operation', 8, 23),
+            (T.EOS, '', 8, 35),
+            (T.TIMEOUT, '[Timeout]', 9, 4),
+            (T.ARGUMENT, '${TIMEOUT}', 9, 23),
+            (T.EOS, '', 9, 33),
+            (T.RETURN, '[Return]', 10, 4,
+             "The '[Return]' setting is deprecated. Use the 'RETURN' statement instead."),
+            (T.ARGUMENT, 'Value', 10, 23),
+            (T.EOS, '', 10, 28)
         ]
         assert_tokens(data, expected, get_tokens, data_only=True)
         assert_tokens(data, expected, get_resource_tokens, data_only=True)
@@ -627,7 +662,8 @@ Name
             (T.ERROR, '[Timeout]', 12, 4,
              "Setting 'Timeout' is allowed only once. Only the first value is used."),
             (T.EOS, '', 12, 13),
-            (T.RETURN, '[Return]', 13, 4),
+            (T.RETURN, '[Return]', 13, 4,
+             "The '[Return]' setting is deprecated. Use the 'RETURN' statement instead."),
             (T.ARGUMENT, 'Used', 13, 23),
             (T.EOS, '', 13, 27),
             (T.ERROR, '[Return]', 14, 4,
@@ -642,35 +678,42 @@ class TestSectionHeaders(unittest.TestCase):
     def test_headers_allowed_everywhere(self):
         data = '''\
 *** Settings ***
-*** Setting ***
+*** SETTINGS ***
 ***variables***
-*VARIABLE*    ARGS    ARGH
+*VARIABLES*    ARGS    ARGH
 *Keywords     ***    ...
 ...           ***
-*** Keyword ***      # Comment
+*** Keywords ***      # Comment
 *** Comments ***
-*** Comment ***    1    2
-...    3    4
-...    5
+Hello, I'm a comment!
+*** COMMENTS ***    1    2
+...    3
 '''
         expected = [
             (T.SETTING_HEADER, '*** Settings ***', 1, 0),
             (T.EOS, '', 1, 16),
-            (T.SETTING_HEADER, '*** Setting ***', 2, 0),
-            (T.EOS, '', 2, 15),
+            (T.SETTING_HEADER, '*** SETTINGS ***', 2, 0),
+            (T.EOS, '', 2, 16),
             (T.VARIABLE_HEADER, '***variables***', 3, 0),
             (T.EOS, '', 3, 15),
-            (T.VARIABLE_HEADER, '*VARIABLE*', 4, 0),
-            (T.VARIABLE_HEADER, 'ARGS', 4, 14),
-            (T.VARIABLE_HEADER, 'ARGH', 4, 22),
-            (T.EOS, '', 4, 26),
+            (T.VARIABLE_HEADER, '*VARIABLES*', 4, 0),
+            (T.VARIABLE_HEADER, 'ARGS', 4, 15),
+            (T.VARIABLE_HEADER, 'ARGH', 4, 23),
+            (T.EOS, '', 4, 27),
             (T.KEYWORD_HEADER, '*Keywords', 5, 0),
             (T.KEYWORD_HEADER, '***', 5, 14),
             (T.KEYWORD_HEADER, '...', 5, 21),
             (T.KEYWORD_HEADER, '***', 6, 14),
             (T.EOS, '', 6, 17),
-            (T.KEYWORD_HEADER, '*** Keyword ***', 7, 0),
-            (T.EOS, '', 7, 15)
+            (T.KEYWORD_HEADER, '*** Keywords ***', 7, 0),
+            (T.EOS, '', 7, 16),
+            (T.COMMENT_HEADER, '*** Comments ***', 8, 0),
+            (T.EOS, '', 8, 16),
+            (T.COMMENT_HEADER, '*** COMMENTS ***', 10, 0),
+            (T.COMMENT_HEADER, '1', 10, 20),
+            (T.COMMENT_HEADER, '2', 10, 25),
+            (T.COMMENT_HEADER, '3', 11, 7),
+            (T.EOS, '', 11, 8)
         ]
         assert_tokens(data, expected, get_tokens, data_only=True)
         assert_tokens(data, expected, get_init_tokens, data_only=True)
@@ -684,21 +727,21 @@ class TestSectionHeaders(unittest.TestCase):
 
     def test_case_section_causes_error_in_init_file(self):
         assert_tokens('*** Test Cases ***', [
-            (T.ERROR, '*** Test Cases ***', 1, 0,
+            (T.INVALID_HEADER, '*** Test Cases ***', 1, 0,
              "'Test Cases' section is not allowed in suite initialization file."),
             (T.EOS, '', 1, 18),
         ], get_init_tokens, data_only=True)
 
     def test_case_section_causes_fatal_error_in_resource_file(self):
         assert_tokens('*** Test Cases ***', [
-            (T.FATAL_ERROR, '*** Test Cases ***', 1, 0,
+            (T.INVALID_HEADER, '*** Test Cases ***', 1, 0,
              "Resource file with 'Test Cases' section is invalid."),
             (T.EOS, '', 1, 18),
         ], get_resource_tokens, data_only=True)
 
     def test_invalid_section_in_test_case_file(self):
         assert_tokens('*** Invalid ***', [
-            (T.ERROR, '*** Invalid ***', 1, 0,
+            (T.INVALID_HEADER, '*** Invalid ***', 1, 0,
              "Unrecognized section header '*** Invalid ***'. Valid sections: "
              "'Settings', 'Variables', 'Test Cases', 'Tasks', 'Keywords' and 'Comments'."),
             (T.EOS, '', 1, 15),
@@ -706,7 +749,7 @@ class TestSectionHeaders(unittest.TestCase):
 
     def test_invalid_section_in_init_file(self):
         assert_tokens('*** S e t t i n g s ***', [
-            (T.ERROR, '*** S e t t i n g s ***', 1, 0,
+            (T.INVALID_HEADER, '*** S e t t i n g s ***', 1, 0,
              "Unrecognized section header '*** S e t t i n g s ***'. Valid sections: "
              "'Settings', 'Variables', 'Keywords' and 'Comments'."),
             (T.EOS, '', 1, 23),
@@ -714,11 +757,51 @@ class TestSectionHeaders(unittest.TestCase):
 
     def test_invalid_section_in_resource_file(self):
         assert_tokens('*', [
-            (T.ERROR, '*', 1, 0,
+            (T.INVALID_HEADER, '*', 1, 0,
              "Unrecognized section header '*'. Valid sections: "
              "'Settings', 'Variables', 'Keywords' and 'Comments'."),
             (T.EOS, '', 1, 1),
         ], get_resource_tokens, data_only=True)
+
+    def test_singular_headers_are_deprecated(self):
+        data = '''\
+*** Setting ***
+***variable***
+*Keyword
+*** Comment ***
+'''
+        expected = [
+            (T.SETTING_HEADER, '*** Setting ***', 1, 0,
+             "Singular section headers like '*** Setting ***' are deprecated. "
+             "Use plural format like '*** Settings ***' instead."),
+            (T.EOL, '\n', 1, 15),
+            (T.EOS, '', 1, 16),
+            (T.VARIABLE_HEADER, '***variable***', 2, 0,
+             "Singular section headers like '***variable***' are deprecated. "
+             "Use plural format like '*** Variables ***' instead."),
+            (T.EOL, '\n', 2, 14),
+            (T.EOS, '', 2, 15),
+            (T.KEYWORD_HEADER, '*Keyword', 3, 0,
+             "Singular section headers like '*Keyword' are deprecated. "
+             "Use plural format like '*** Keywords ***' instead."),
+            (T.EOL, '\n', 3, 8),
+            (T.EOS, '', 3, 9),
+            (T.COMMENT_HEADER, '*** Comment ***', 4, 0,
+             "Singular section headers like '*** Comment ***' are deprecated. "
+             "Use plural format like '*** Comments ***' instead."),
+            (T.EOL, '\n', 4, 15),
+            (T.EOS, '', 4, 16)
+        ]
+        assert_tokens(data, expected, get_tokens)
+        assert_tokens(data, expected, get_init_tokens)
+        assert_tokens(data, expected, get_resource_tokens)
+        assert_tokens('*** Test Case ***', [
+            (T.TESTCASE_HEADER, '*** Test Case ***', 1, 0,
+             "Singular section headers like '*** Test Case ***' are deprecated. "
+             "Use plural format like '*** Test Cases ***' instead."),
+            (T.EOL, '', 1, 17),
+            (T.EOS, '', 1, 17),
+        ])
 
 
 class TestName(unittest.TestCase):
@@ -915,6 +998,50 @@ class TestForLoop(unittest.TestCase):
             (T.ARGUMENT, 'foo', 3, 25),
             (T.ARGUMENT, 'bar', 3, 32),
             (T.EOS, '', 3, 35)
+        ]
+        self._verify(header, expected)
+
+    def _verify(self, header, expected_header):
+        data = '''\
+*** %s ***
+Name
+    %s
+        Keyword
+    END
+'''
+        body_and_end = [
+            (T.KEYWORD, 'Keyword', 4, 8),
+            (T.EOS, '', 4, 15),
+            (T.END, 'END', 5, 4),
+            (T.EOS, '', 5, 7)
+        ]
+        expected = [
+            (T.TESTCASE_HEADER, '*** Test Cases ***', 1, 0),
+            (T.EOS, '', 1, 18),
+            (T.TESTCASE_NAME, 'Name', 2, 0),
+            (T.EOS, '', 2, 4)
+        ] + expected_header + body_and_end
+        assert_tokens(data % ('Test Cases', header), expected, data_only=True)
+
+        expected = [
+            (T.KEYWORD_HEADER, '*** Keywords ***', 1, 0),
+            (T.EOS, '', 1, 16),
+            (T.KEYWORD_NAME, 'Name', 2, 0),
+            (T.EOS, '', 2, 4)
+        ] + expected_header + body_and_end
+        assert_tokens(data % ('Keywords', header), expected, data_only=True)
+        assert_tokens(data % ('Keywords', header), expected,
+                      get_resource_tokens, data_only=True)
+
+
+class TestGroup(unittest.TestCase):
+
+    def test_group_header(self):
+        header = 'GROUP    Name'
+        expected = [
+            (T.GROUP, 'GROUP', 3, 4),
+            (T.ARGUMENT, 'Name', 3, 13),
+            (T.EOS, '', 3, 17)
         ]
         self._verify(header, expected)
 
@@ -1166,6 +1293,143 @@ class TestInlineIf(unittest.TestCase):
             (T.EOS, '', 3, 83),
             (T.END, '', 3, 83),
             (T.EOS, '', 3, 83)
+        ]
+        self._verify(header, expected)
+
+    def test_else_if_with_non_ascii_space(self):
+        #             4     10   15    21
+        header = '    IF    1    K1    ELSE\N{NO-BREAK SPACE}IF    2    K2'
+        expected = [
+            (T.SEPARATOR, '    ', 3, 0),
+            (T.INLINE_IF, 'IF', 3, 4),
+            (T.SEPARATOR, '    ', 3, 6),
+            (T.ARGUMENT, '1', 3, 10),
+            (T.EOS, '', 3, 11),
+            (T.SEPARATOR, '    ', 3, 11),
+            (T.KEYWORD, 'K1', 3, 15),
+            (T.SEPARATOR, '    ', 3, 17),
+            (T.EOS, '', 3, 21),
+            (T.ELSE_IF, 'ELSE\N{NO-BREAK SPACE}IF', 3, 21),
+            (T.SEPARATOR, '    ', 3, 28),
+            (T.ARGUMENT, '2', 3, 32),
+            (T.EOS, '', 3, 33),
+            (T.SEPARATOR, '    ', 3, 33),
+            (T.KEYWORD, 'K2', 3, 37),
+            (T.EOL, '\n', 3, 39),
+            (T.EOS, '', 3, 40),
+            (T.END, '', 3, 40),
+            (T.EOS, '', 3, 40)
+        ]
+        self._verify(header, expected)
+
+    def test_empty_else(self):
+        header = '    IF    e    K    ELSE'
+        expected = [
+            (T.SEPARATOR, '    ', 3, 0),
+            (T.INLINE_IF, 'IF', 3, 4),
+            (T.SEPARATOR, '    ', 3, 6),
+            (T.ARGUMENT, 'e', 3, 10),
+            (T.EOS, '', 3, 11),
+            (T.SEPARATOR, '    ', 3, 11),
+            (T.KEYWORD, 'K', 3, 15),
+            (T.SEPARATOR, '    ', 3, 16),
+            (T.EOS, '', 3, 20),
+            (T.ELSE, 'ELSE', 3, 20),
+            (T.EOL, '\n', 3, 24),
+            (T.EOS, '', 3, 25),
+            (T.END, '', 3, 25),
+            (T.EOS, '', 3, 25)
+        ]
+        self._verify(header, expected)
+
+    def test_empty_else_if(self):
+        header = '    IF    e    K    ELSE IF'
+        expected = [
+            (T.SEPARATOR, '    ', 3, 0),
+            (T.INLINE_IF, 'IF', 3, 4),
+            (T.SEPARATOR, '    ', 3, 6),
+            (T.ARGUMENT, 'e', 3, 10),
+            (T.EOS, '', 3, 11),
+            (T.SEPARATOR, '    ', 3, 11),
+            (T.KEYWORD, 'K', 3, 15),
+            (T.SEPARATOR, '    ', 3, 16),
+            (T.EOS, '', 3, 20),
+            (T.ELSE_IF, 'ELSE IF', 3, 20),
+            (T.EOL, '\n', 3, 27),
+            (T.EOS, '', 3, 28),
+            (T.END, '', 3, 28),
+            (T.EOS, '', 3, 28)
+        ]
+        self._verify(header, expected)
+
+    def test_else_if_with_only_expression(self):
+        header = '    IF    e    K    ELSE IF    e'
+        expected = [
+            (T.SEPARATOR, '    ', 3, 0),
+            (T.INLINE_IF, 'IF', 3, 4),
+            (T.SEPARATOR, '    ', 3, 6),
+            (T.ARGUMENT, 'e', 3, 10),
+            (T.EOS, '', 3, 11),
+            (T.SEPARATOR, '    ', 3, 11),
+            (T.KEYWORD, 'K', 3, 15),
+            (T.SEPARATOR, '    ', 3, 16),
+            (T.EOS, '', 3, 20),
+            (T.ELSE_IF, 'ELSE IF', 3, 20),
+            (T.SEPARATOR, '    ', 3, 27),
+            (T.ARGUMENT, 'e', 3, 31),
+            (T.EOL, '\n', 3, 32),
+            (T.EOS, '', 3, 33),
+            (T.END, '', 3, 33),
+            (T.EOS, '', 3, 33)
+        ]
+        self._verify(header, expected)
+
+    def test_assign(self):
+        #             4         14    20      28    34      42
+        header = '    ${x} =    IF    True    K1    ELSE    K2'
+        expected = [
+            (T.SEPARATOR, '    ', 3, 0),
+            (T.ASSIGN, '${x} =', 3, 4),
+            (T.SEPARATOR, '    ', 3, 10),
+            (T.INLINE_IF, 'IF', 3, 14),
+            (T.SEPARATOR, '    ', 3, 16),
+            (T.ARGUMENT, 'True', 3, 20),
+            (T.EOS, '', 3, 24),
+            (T.SEPARATOR, '    ', 3, 24),
+            (T.KEYWORD, 'K1', 3, 28),
+            (T.SEPARATOR, '    ', 3, 30),
+            (T.EOS, '', 3, 34),
+            (T.ELSE, 'ELSE', 3, 34),
+            (T.EOS, '', 3, 38),
+            (T.SEPARATOR, '    ', 3, 38),
+            (T.KEYWORD, 'K2', 3, 42),
+            (T.EOL, '\n', 3, 44),
+            (T.EOS, '', 3, 45),
+            (T.END, '', 3, 45),
+            (T.EOS, '', 3, 45),
+        ]
+        self._verify(header, expected)
+
+    def test_assign_with_empty_else(self):
+        #             4         14    20      28    34
+        header = '    ${x} =    IF    True    K1    ELSE'
+        expected = [
+            (T.SEPARATOR, '    ', 3, 0),
+            (T.ASSIGN, '${x} =', 3, 4),
+            (T.SEPARATOR, '    ', 3, 10),
+            (T.INLINE_IF, 'IF', 3, 14),
+            (T.SEPARATOR, '    ', 3, 16),
+            (T.ARGUMENT, 'True', 3, 20),
+            (T.EOS, '', 3, 24),
+            (T.SEPARATOR, '    ', 3, 24),
+            (T.KEYWORD, 'K1', 3, 28),
+            (T.SEPARATOR, '    ', 3, 30),
+            (T.EOS, '', 3, 34),
+            (T.ELSE, 'ELSE', 3, 34),
+            (T.EOL, '\n', 3, 38),
+            (T.EOS, '', 3, 39),
+            (T.END, '', 3, 39),
+            (T.EOS, '', 3, 39),
         ]
         self._verify(header, expected)
 
@@ -1431,7 +1695,7 @@ Example
 
     @classmethod
     def setUpClass(cls):
-        with open(cls.path, 'w') as f:
+        with open(cls.path, 'w', encoding='UTF-8') as f:
             f.write(cls.data)
 
     @classmethod
@@ -1447,9 +1711,9 @@ Example
         self._verify(Path(self.path), data_only=True)
 
     def test_open_file(self):
-        with open(self.path) as f:
+        with open(self.path, encoding='UTF-8') as f:
             self._verify(f)
-        with open(self.path) as f:
+        with open(self.path, encoding='UTF-8') as f:
             self._verify(f, data_only=True)
 
     def test_string_io(self):
@@ -1467,16 +1731,16 @@ Example
 
 class TestGetResourceTokensSourceFormats(TestGetTokensSourceFormats):
     data = '''\
-*** Variable ***
+*** Variables ***
 ${VAR}    Value
 
-*** KEYWORD ***
+*** KEYWORDS ***
 NOOP    No Operation
 '''
     tokens = [
-        (T.VARIABLE_HEADER, '*** Variable ***', 1, 0),
-        (T.EOL, '\n', 1, 16),
-        (T.EOS, '', 1, 17),
+        (T.VARIABLE_HEADER, '*** Variables ***', 1, 0),
+        (T.EOL, '\n', 1, 17),
+        (T.EOS, '', 1, 18),
         (T.VARIABLE, '${VAR}', 2, 0),
         (T.SEPARATOR, '    ', 2, 6),
         (T.ARGUMENT, 'Value', 2, 10),
@@ -1484,9 +1748,9 @@ NOOP    No Operation
         (T.EOS, '', 2, 16),
         (T.EOL, '\n', 3, 0),
         (T.EOS, '', 3, 1),
-        (T.KEYWORD_HEADER, '*** KEYWORD ***', 4, 0),
-        (T.EOL, '\n', 4, 15),
-        (T.EOS, '', 4, 16),
+        (T.KEYWORD_HEADER, '*** KEYWORDS ***', 4, 0),
+        (T.EOL, '\n', 4, 16),
+        (T.EOS, '', 4, 17),
         (T.KEYWORD_NAME, 'NOOP', 5, 0),
         (T.EOS, '', 5, 4),
         (T.SEPARATOR, '    ', 5, 4),
@@ -1495,13 +1759,13 @@ NOOP    No Operation
         (T.EOS, '', 5, 21)
     ]
     data_tokens = [
-        (T.VARIABLE_HEADER, '*** Variable ***', 1, 0),
-        (T.EOS, '', 1, 16),
+        (T.VARIABLE_HEADER, '*** Variables ***', 1, 0),
+        (T.EOS, '', 1, 17),
         (T.VARIABLE, '${VAR}', 2, 0),
         (T.ARGUMENT, 'Value', 2, 10),
         (T.EOS, '', 2, 15),
-        (T.KEYWORD_HEADER, '*** KEYWORD ***', 4, 0),
-        (T.EOS, '', 4, 15),
+        (T.KEYWORD_HEADER, '*** KEYWORDS ***', 4, 0),
+        (T.EOS, '', 4, 16),
         (T.KEYWORD_NAME, 'NOOP', 5, 0),
         (T.EOS, '', 5, 4),
         (T.KEYWORD, 'No Operation', 5, 8),
@@ -1519,7 +1783,7 @@ class TestTokenizeVariables(unittest.TestCase):
     def test_settings(self):
         data = '''\
 *** Settings ***
-Library       My${Name}    my ${arg}    ${x}[0]    WITH NAME    Your${Name}
+Library       My${Name}    my ${arg}    ${x}[0]    AS    Your${Name}
 ${invalid}    ${usage}
 '''
         expected = [(T.SETTING_HEADER, '*** Settings ***', 1, 0),
@@ -1530,10 +1794,10 @@ ${invalid}    ${usage}
                     (T.ARGUMENT, 'my ', 2, 27),
                     (T.VARIABLE, '${arg}', 2, 30),
                     (T.VARIABLE, '${x}[0]', 2, 40),
-                    (T.WITH_NAME, 'WITH NAME', 2, 51),
-                    (T.NAME, 'Your', 2, 64),
-                    (T.VARIABLE, '${Name}', 2, 68),
-                    (T.EOS, '', 2, 75),
+                    (T.AS, 'AS', 2, 51),
+                    (T.NAME, 'Your', 2, 57),
+                    (T.VARIABLE, '${Name}', 2, 61),
+                    (T.EOS, '', 2, 68),
                     (T.ERROR, '${invalid}', 3, 0, "Non-existing setting '${invalid}'."),
                     (T.EOS, '', 3, 10)]
         assert_tokens(data, expected, get_tokens=get_tokens,
@@ -1759,9 +2023,8 @@ class TestReturn(unittest.TestCase):
         self._verify(data, expected)
 
     def test_in_test(self):
-        # This is not valid usage but that's not recognized during lexing.
         data = '    RETURN'
-        expected = [(T.RETURN_STATEMENT, 'RETURN', 3, 4),
+        expected = [(T.ERROR, 'RETURN', 3, 4,  'RETURN is not allowed in this context.'),
                     (T.EOS, '', 3, 10)]
         self._verify(data, expected, test=True)
 
@@ -1814,6 +2077,523 @@ class TestReturn(unittest.TestCase):
                     (name_type, 'Name', 2, 0),
                     (T.EOS, '', 2, 4)] + expected
         assert_tokens(data, expected, data_only=True)
+
+
+class TestContinue(unittest.TestCase):
+
+    def test_in_keyword(self):
+        data = '    CONTINUE'
+        expected = [(T.ERROR, 'CONTINUE', 3, 4,  'CONTINUE is not allowed in this context.'),
+                    (T.EOS, '', 3, 12)]
+        self._verify(data, expected)
+
+    def test_in_test(self):
+        data = '    CONTINUE'
+        expected = [(T.ERROR, 'CONTINUE', 3, 4,  'CONTINUE is not allowed in this context.'),
+                    (T.EOS, '', 3, 12)]
+        self._verify(data, expected, test=True)
+
+    def test_in_if(self):
+        data = '''\
+    FOR    ${x}    IN    @{STUFF}
+        IF    True
+            CONTINUE
+        END
+    END
+'''
+        expected = [(T.FOR, 'FOR', 3, 4),
+                    (T.VARIABLE, '${x}', 3, 11),
+                    (T.FOR_SEPARATOR, 'IN', 3, 19),
+                    (T.ARGUMENT, '@{STUFF}', 3, 25),
+                    (T.EOS, '', 3, 33),
+                    (T.IF, 'IF', 4, 8),
+                    (T.ARGUMENT, 'True', 4, 14),
+                    (T.EOS, '', 4, 18),
+                    (T.CONTINUE, 'CONTINUE', 5, 12),
+                    (T.EOS, '', 5, 20),
+                    (T.END, 'END', 6, 8),
+                    (T.EOS, '', 6, 11),
+                    (T.END, 'END', 7, 4),
+                    (T.EOS, '', 7, 7)]
+        self._verify(data, expected)
+
+    def test_in_try(self):
+        data = '''\
+    FOR    ${x}    IN    @{STUFF}
+        TRY
+            KW
+        EXCEPT
+            CONTINUE
+        END
+    END
+'''
+        expected = [(T.FOR, 'FOR', 3, 4),
+                    (T.VARIABLE, '${x}', 3, 11),
+                    (T.FOR_SEPARATOR, 'IN', 3, 19),
+                    (T.ARGUMENT, '@{STUFF}', 3, 25),
+                    (T.EOS, '', 3, 33),
+                    (T.TRY, 'TRY', 4, 8),
+                    (T.EOS, '', 4, 11),
+                    (T.KEYWORD, 'KW', 5, 12),
+                    (T.EOS, '', 5, 14),
+                    (T.EXCEPT, 'EXCEPT', 6, 8),
+                    (T.EOS, '', 6, 14),
+                    (T.CONTINUE, 'CONTINUE', 7, 12),
+                    (T.EOS, '', 7, 20),
+                    (T.END, 'END', 8, 8),
+                    (T.EOS, '', 8, 11),
+                    (T.END, 'END', 9, 4),
+                    (T.EOS, '', 9, 7)]
+        self._verify(data, expected)
+
+    def test_in_for(self):
+        data = '''\
+    FOR    ${x}    IN    @{STUFF}
+        CONTINUE
+    END
+'''
+        expected = [(T.FOR, 'FOR', 3, 4),
+                    (T.VARIABLE, '${x}', 3, 11),
+                    (T.FOR_SEPARATOR, 'IN', 3, 19),
+                    (T.ARGUMENT, '@{STUFF}', 3, 25),
+                    (T.EOS, '', 3, 33),
+                    (T.CONTINUE, 'CONTINUE', 4, 8),
+                    (T.EOS, '', 4, 16),
+                    (T.END, 'END', 5, 4),
+                    (T.EOS, '', 5, 7)]
+        self._verify(data, expected)
+
+    def test_in_while(self):
+        data = '''\
+    WHILE    ${EXPR}
+        CONTINUE
+    END
+'''
+        expected = [(T.WHILE, 'WHILE', 3, 4),
+                    (T.ARGUMENT, '${EXPR}', 3, 13),
+                    (T.EOS, '', 3, 20),
+                    (T.CONTINUE, 'CONTINUE', 4, 8),
+                    (T.EOS, '', 4, 16),
+                    (T.END, 'END', 5, 4),
+                    (T.EOS, '', 5, 7)]
+        self._verify(data, expected)
+
+    def _verify(self, data, expected, test=False):
+        if not test:
+            header = '*** Keywords ***'
+            header_type = T.KEYWORD_HEADER
+            name_type = T.KEYWORD_NAME
+        else:
+            header = '*** Test Cases ***'
+            header_type = T.TESTCASE_HEADER
+            name_type = T.TESTCASE_NAME
+        data = f'{header}\nName\n{data}'
+        expected = [(header_type, header, 1, 0),
+                    (T.EOS, '', 1, len(header)),
+                    (name_type, 'Name', 2, 0),
+                    (T.EOS, '', 2, 4)] + expected
+        assert_tokens(data, expected, data_only=True)
+
+
+class TestBreak(unittest.TestCase):
+
+    def test_in_keyword(self):
+        data = '    BREAK'
+        expected = [(T.ERROR, 'BREAK', 3, 4,  'BREAK is not allowed in this context.'),
+                    (T.EOS, '', 3, 9)]
+        self._verify(data, expected)
+
+    def test_in_test(self):
+        data = '    BREAK'
+        expected = [(T.ERROR, 'BREAK', 3, 4,  'BREAK is not allowed in this context.'),
+                    (T.EOS, '', 3, 9)]
+        self._verify(data, expected, test=True)
+
+    def test_in_if(self):
+        data = '''\
+    FOR    ${x}    IN    @{STUFF}
+        IF    True
+            BREAK
+        END
+    END
+'''
+        expected = [(T.FOR, 'FOR', 3, 4),
+                    (T.VARIABLE, '${x}', 3, 11),
+                    (T.FOR_SEPARATOR, 'IN', 3, 19),
+                    (T.ARGUMENT, '@{STUFF}', 3, 25),
+                    (T.EOS, '', 3, 33),
+                    (T.IF, 'IF', 4, 8),
+                    (T.ARGUMENT, 'True', 4, 14),
+                    (T.EOS, '', 4, 18),
+                    (T.BREAK, 'BREAK', 5, 12),
+                    (T.EOS, '', 5, 17),
+                    (T.END, 'END', 6, 8),
+                    (T.EOS, '', 6, 11),
+                    (T.END, 'END', 7, 4),
+                    (T.EOS, '', 7, 7)]
+        self._verify(data, expected)
+
+    def test_in_for(self):
+        data = '''\
+    FOR    ${x}    IN    @{STUFF}
+        BREAK
+    END
+'''
+        expected = [(T.FOR, 'FOR', 3, 4),
+                    (T.VARIABLE, '${x}', 3, 11),
+                    (T.FOR_SEPARATOR, 'IN', 3, 19),
+                    (T.ARGUMENT, '@{STUFF}', 3, 25),
+                    (T.EOS, '', 3, 33),
+                    (T.BREAK, 'BREAK', 4, 8),
+                    (T.EOS, '', 4, 13),
+                    (T.END, 'END', 5, 4),
+                    (T.EOS, '', 5, 7)]
+        self._verify(data, expected)
+
+    def test_in_while(self):
+        data = '''\
+    WHILE    ${EXPR}
+        BREAK
+    END
+'''
+        expected = [(T.WHILE, 'WHILE', 3, 4),
+                    (T.ARGUMENT, '${EXPR}', 3, 13),
+                    (T.EOS, '', 3, 20),
+                    (T.BREAK, 'BREAK', 4, 8),
+                    (T.EOS, '', 4, 13),
+                    (T.END, 'END', 5, 4),
+                    (T.EOS, '', 5, 7)]
+        self._verify(data, expected)
+
+    def test_in_try(self):
+        data = '''\
+    FOR    ${x}    IN    @{STUFF}
+        TRY
+            KW
+        EXCEPT
+            BREAK
+        END
+    END
+'''
+        expected = [(T.FOR, 'FOR', 3, 4),
+                    (T.VARIABLE, '${x}', 3, 11),
+                    (T.FOR_SEPARATOR, 'IN', 3, 19),
+                    (T.ARGUMENT, '@{STUFF}', 3, 25),
+                    (T.EOS, '', 3, 33),
+                    (T.TRY, 'TRY', 4, 8),
+                    (T.EOS, '', 4, 11),
+                    (T.KEYWORD, 'KW', 5, 12),
+                    (T.EOS, '', 5, 14),
+                    (T.EXCEPT, 'EXCEPT', 6, 8),
+                    (T.EOS, '', 6, 14),
+                    (T.BREAK, 'BREAK', 7, 12),
+                    (T.EOS, '', 7, 17),
+                    (T.END, 'END', 8, 8),
+                    (T.EOS, '', 8, 11),
+                    (T.END, 'END', 9, 4),
+                    (T.EOS, '', 9, 7)]
+        self._verify(data, expected)
+
+    def _verify(self, data, expected, test=False):
+        if not test:
+            header = '*** Keywords ***'
+            header_type = T.KEYWORD_HEADER
+            name_type = T.KEYWORD_NAME
+        else:
+            header = '*** Test Cases ***'
+            header_type = T.TESTCASE_HEADER
+            name_type = T.TESTCASE_NAME
+        data = f'{header}\nName\n{data}'
+        expected = [(header_type, header, 1, 0),
+                    (T.EOS, '', 1, len(header)),
+                    (name_type, 'Name', 2, 0),
+                    (T.EOS, '', 2, 4)] + expected
+        assert_tokens(data, expected, data_only=True)
+
+
+class TestVar(unittest.TestCase):
+
+    def test_simple(self):
+        data = 'VAR    ${name}    value'
+        expected = [
+            (T.VAR, 'VAR', 3, 4),
+            (T.VARIABLE, '${name}', 3, 11),
+            (T.ARGUMENT, 'value', 3, 22),
+            (T.EOS, '', 3, 27)
+        ]
+        self._verify(data, expected)
+
+    def test_equals(self):
+        data = 'VAR    ${name}=    value'
+        expected = [
+            (T.VAR, 'VAR', 3, 4),
+            (T.VARIABLE, '${name}=', 3, 11),
+            (T.ARGUMENT, 'value', 3, 23),
+            (T.EOS, '', 3, 28)
+        ]
+        self._verify(data, expected)
+
+    def test_multiple_values(self):
+        data = 'VAR    @{name}    v1    v2\n...    v3'
+        expected = [
+            (T.VAR, None, 3, 4),
+            (T.VARIABLE, '@{name}', 3, 11),
+            (T.ARGUMENT, 'v1', 3, 22),
+            (T.ARGUMENT, 'v2', 3, 28),
+            (T.ARGUMENT, 'v3', 4, 11),
+            (T.EOS, '', 4, 13)
+        ]
+        self._verify(data, expected)
+
+    def test_no_values(self):
+        data = 'VAR    @{name}'
+        expected = [
+            (T.VAR, 'VAR', 3, 4),
+            (T.VARIABLE, '@{name}', 3, 11),
+            (T.EOS, '', 3, 18)
+        ]
+        self._verify(data, expected)
+
+    def test_no_name(self):
+        data = 'VAR'
+        expected = [
+            (T.VAR, 'VAR', 3, 4),
+            (T.EOS, '', 3, 7)
+        ]
+        self._verify(data, expected)
+
+    def test_no_name_with_continuation(self):
+        data = 'VAR\n...'
+        expected = [
+            (T.VAR, 'VAR', 3, 4),
+            (T.VARIABLE, '', 4, 7),
+            (T.EOS, '', 4, 7)
+        ]
+        self._verify(data, expected)
+
+    def test_scope(self):
+        data = ('VAR    ${name}    value    scope=GLOBAL\n'
+                'VAR    @{name}    value    scope=suite\n'
+                'VAR    &{name}    value    scope=Test\n')
+        expected = [
+            (T.VAR, 'VAR', 3, 4),
+            (T.VARIABLE, '${name}', 3, 11),
+            (T.ARGUMENT, 'value', 3, 22),
+            (T.OPTION, 'scope=GLOBAL', 3, 31),
+            (T.EOS, '', 3, 43),
+            (T.VAR, 'VAR', 4, 4),
+            (T.VARIABLE, '@{name}', 4, 11),
+            (T.ARGUMENT, 'value', 4, 22),
+            (T.OPTION, 'scope=suite', 4, 31),
+            (T.EOS, '', 4, 42),
+            (T.VAR, 'VAR', 5, 4),
+            (T.VARIABLE, '&{name}', 5, 11),
+            (T.ARGUMENT, 'value', 5, 22),
+            (T.OPTION, 'scope=Test', 5, 31),
+            (T.EOS, '', 5, 41)
+        ]
+        self._verify(data, expected)
+
+    def test_only_one_scope(self):
+        data = ('VAR    ${name}    scope=value    scope=GLOBAL\n'
+                'VAR    &{name}    scope=value    scope=GLOBAL')
+        expected = [
+            (T.VAR, 'VAR', 3, 4),
+            (T.VARIABLE, '${name}', 3, 11),
+            (T.ARGUMENT, 'scope=value', 3, 22),
+            (T.OPTION, 'scope=GLOBAL', 3, 37),
+            (T.EOS, '', 3, 49),
+            (T.VAR, 'VAR', 4, 4),
+            (T.VARIABLE, '&{name}', 4, 11),
+            (T.ARGUMENT, 'scope=value', 4, 22),
+            (T.OPTION, 'scope=GLOBAL', 4, 37),
+            (T.EOS, '', 4, 49)
+        ]
+        self._verify(data, expected)
+
+    def test_separator_with_scalar(self):
+        data = 'VAR    ${name}    v1    v2    separator=-'
+        expected = [
+            (T.VAR, 'VAR', 3, 4),
+            (T.VARIABLE, '${name}', 3, 11),
+            (T.ARGUMENT, 'v1', 3, 22),
+            (T.ARGUMENT, 'v2', 3, 28),
+            (T.OPTION, 'separator=-', 3, 34),
+            (T.EOS, '', 3, 45)
+        ]
+        self._verify(data, expected)
+
+    def test_only_one_separator(self):
+        data = 'VAR    ${name}    scope=v1    separator=v2    separator=-'
+        expected = [
+            (T.VAR, 'VAR', 3, 4),
+            (T.VARIABLE, '${name}', 3, 11),
+            (T.ARGUMENT, 'scope=v1', 3, 22),
+            (T.ARGUMENT, 'separator=v2', 3, 34),
+            (T.OPTION, 'separator=-', 3, 50),
+            (T.EOS, '', 3, 61)
+        ]
+        self._verify(data, expected)
+
+    def test_no_separator_with_list(self):
+        data = 'VAR    @{name}    v1    v2    separator=-'
+        expected = [
+            (T.VAR, 'VAR', 3, 4),
+            (T.VARIABLE, '@{name}', 3, 11),
+            (T.ARGUMENT, 'v1', 3, 22),
+            (T.ARGUMENT, 'v2', 3, 28),
+            (T.ARGUMENT, 'separator=-', 3, 34),
+            (T.EOS, '', 3, 45)
+        ]
+        self._verify(data, expected)
+
+    def test_no_separator_with_dict(self):
+        data = 'VAR    &{name}    scope=value    separator=-'
+        expected = [
+            (T.VAR, 'VAR', 3, 4),
+            (T.VARIABLE, '&{name}', 3, 11),
+            (T.ARGUMENT, 'scope=value', 3, 22),
+            (T.ARGUMENT, 'separator=-', 3, 37),
+            (T.EOS, '', 3, 48)
+        ]
+        self._verify(data, expected)
+
+    def _verify(self, data, expected):
+        data = '    ' + '\n    '.join(data.splitlines())
+        data = f'*** Test Cases ***\nName\n{data}'
+        expected = [(T.TESTCASE_HEADER, '*** Test Cases ***', 1, 0),
+                    (T.EOS, '', 1, 18),
+                    (T.TESTCASE_NAME, 'Name', 2, 0),
+                    (T.EOS, '', 2, 4)] + expected
+        assert_tokens(data, expected, data_only=True)
+
+
+class TestLanguageConfig(unittest.TestCase):
+
+    def test_lang_as_code(self):
+        self._test_explicit_config('fi')
+        self._test_explicit_config('F-I')
+
+    def test_lang_as_name(self):
+        self._test_explicit_config('Finnish')
+        self._test_explicit_config('FINNISH')
+
+    def test_lang_as_Language(self):
+        self._test_explicit_config(Language.from_name('fi'))
+
+    def test_lang_as_list(self):
+        self._test_explicit_config(['fi', Language.from_name('de')])
+        self._test_explicit_config([Language.from_name('fi'), 'de'])
+
+    def test_lang_as_tuple(self):
+        self._test_explicit_config(('f-i', Language.from_name('de')))
+        self._test_explicit_config((Language.from_name('fi'), 'de'))
+
+    def test_lang_as_Languages(self):
+        self._test_explicit_config(Languages('fi'))
+
+    def _test_explicit_config(self, lang):
+        data = '''\
+*** Asetukset ***
+Dokumentaatio    Documentation
+'''
+        expected = [
+            (T.SETTING_HEADER, '*** Asetukset ***', 1, 0),
+            (T.EOL, '\n', 1, 17),
+            (T.EOS, '', 1, 18),
+            (T.DOCUMENTATION, 'Dokumentaatio', 2, 0),
+            (T.SEPARATOR, '    ', 2, 13),
+            (T.ARGUMENT, 'Documentation', 2, 17),
+            (T.EOL, '\n', 2, 30),
+            (T.EOS, '', 2, 31),
+        ]
+        assert_tokens(data, expected, get_tokens, lang=lang)
+        assert_tokens(data, expected, get_init_tokens, lang=lang)
+        assert_tokens(data, expected, get_resource_tokens, lang=lang)
+
+    def test_per_file_config(self):
+        data = '''\
+ignored
+language: fi
+ignored    language: pt
+Language:Ger    man    # ok!
+*** Asetukset ***
+Dokumentaatio    Documentation
+'''
+        expected = [
+            (T.COMMENT, 'ignored', 1, 0),
+            (T.EOL, '\n', 1, 7),
+            (T.EOS, '', 1, 8),
+            (T.CONFIG, 'language: fi', 2, 0),
+            (T.EOL, '\n', 2, 12),
+            (T.EOS, '', 2, 13),
+            (T.COMMENT, 'ignored', 3, 0),
+            (T.SEPARATOR, '    ', 3, 7),
+            (T.COMMENT, 'language: pt', 3, 11),
+            (T.EOL, '\n', 3, 23),
+            (T.EOS, '', 3, 24),
+            (T.CONFIG, 'Language:Ger', 4, 0),
+            (T.SEPARATOR, '    ', 4, 12),
+            (T.CONFIG, 'man', 4, 16),
+            (T.SEPARATOR, '    ', 4, 19),
+            (T.COMMENT, '# ok!', 4, 23),
+            (T.EOL, '\n', 4, 28),
+            (T.EOS, '', 4, 29),
+            (T.SETTING_HEADER, '*** Asetukset ***', 5, 0),
+            (T.EOL, '\n', 5, 17),
+            (T.EOS, '', 5, 18),
+            (T.DOCUMENTATION, 'Dokumentaatio', 6, 0),
+            (T.SEPARATOR, '    ', 6, 13),
+            (T.ARGUMENT, 'Documentation', 6, 17),
+            (T.EOL, '\n', 6, 30),
+            (T.EOS, '', 6, 31),
+        ]
+        assert_tokens(data, expected, get_tokens)
+        lang = Languages()
+        assert_tokens(data, expected, get_init_tokens, lang=lang)
+        assert_equal(lang.languages,
+                     [Language.from_name(lang) for lang in ('en', 'fi', 'de')])
+
+    def test_invalid_per_file_config(self):
+        data = '''\
+language: in:va:lid
+language: bad    again
+Language: Finnish
+*** Asetukset ***
+Dokumentaatio    Documentation
+'''
+        expected = [
+            (T.ERROR, 'language: in:va:lid', 1, 0,
+             "Invalid language configuration: Language 'in:va:lid' not found "
+             "nor importable as a language module."),
+            (T.EOL, '\n', 1, 19),
+            (T.EOS, '', 1, 20),
+            (T.ERROR, 'language: bad', 2, 0,
+             "Invalid language configuration: Language 'bad again' not found "
+             "nor importable as a language module."),
+            (T.SEPARATOR, '    ', 2, 13),
+            (T.ERROR, 'again', 2, 17,
+             "Invalid language configuration: Language 'bad again' not found "
+             "nor importable as a language module."),
+            (T.EOL, '\n', 2, 22),
+            (T.EOS, '', 2, 23),
+            (T.CONFIG, 'Language: Finnish', 3, 0),
+            (T.EOL, '\n', 3, 17),
+            (T.EOS, '', 3, 18),
+            (T.SETTING_HEADER, '*** Asetukset ***', 4, 0),
+            (T.EOL, '\n', 4, 17),
+            (T.EOS, '', 4, 18),
+            (T.DOCUMENTATION, 'Dokumentaatio', 5, 0),
+            (T.SEPARATOR, '    ', 5, 13),
+            (T.ARGUMENT, 'Documentation', 5, 17),
+            (T.EOL, '\n', 5, 30),
+            (T.EOS, '', 5, 31),
+        ]
+        assert_tokens(data, expected, get_tokens)
+        lang = Languages()
+        assert_tokens(data, expected, get_init_tokens, lang=lang)
+        assert_equal(lang.languages,
+                     [Language.from_name(lang) for lang in ('en', 'fi')])
 
 
 if __name__ == '__main__':

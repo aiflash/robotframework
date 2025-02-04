@@ -23,6 +23,9 @@ class TestExposedApi(unittest.TestCase):
         assert_equal(api.SuiteVisitor, model.SuiteVisitor)
         assert_equal(api.ResultVisitor, result.ResultVisitor)
 
+    def test_typeinfo(self):
+        assert_equal(api.TypeInfo, running.TypeInfo)
+
     def test_deprecated_parsing(self):
         assert_equal(api.get_model, parsing.get_model)
         assert_equal(api.get_resource_model, parsing.get_resource_model)
@@ -40,14 +43,14 @@ class TestExposedApi(unittest.TestCase):
         assert_equal(api_parsing.Token, parsing.Token)
 
     def test_parsing_model_statements(self):
-        for cls in parsing.model.Statement._statement_handlers.values():
+        for cls in parsing.model.Statement.statement_handlers.values():
             assert_equal(getattr(api_parsing, cls.__name__), cls)
         assert_true(not hasattr(api_parsing, 'Statement'))
 
     def test_parsing_model_blocks(self):
         for name in ('File', 'SettingSection', 'VariableSection', 'TestCaseSection',
                      'KeywordSection', 'CommentSection', 'TestCase', 'Keyword', 'For',
-                     'If'):
+                     'If', 'Try', 'While', 'Group'):
             assert_equal(getattr(api_parsing, name), getattr(parsing.model, name))
         assert_true(not hasattr(api_parsing, 'Block'))
 

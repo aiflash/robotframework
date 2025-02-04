@@ -6,6 +6,18 @@ robot.htmldata package
    :undoc-members:
    :show-inheritance:
 
+Subpackages
+-----------
+
+.. toctree::
+   :maxdepth: 2
+
+   robot.htmldata.common
+   robot.htmldata.lib
+   robot.htmldata.libdoc
+   robot.htmldata.rebot
+   robot.htmldata.testdoc
+
 Submodules
 ----------
 
@@ -17,26 +29,10 @@ robot.htmldata.htmlfilewriter module
    :undoc-members:
    :show-inheritance:
 
-robot.htmldata.jartemplate module
----------------------------------
-
-.. automodule:: robot.htmldata.jartemplate
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 robot.htmldata.jsonwriter module
 --------------------------------
 
 .. automodule:: robot.htmldata.jsonwriter
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-robot.htmldata.normaltemplate module
-------------------------------------
-
-.. automodule:: robot.htmldata.normaltemplate
    :members:
    :undoc-members:
    :show-inheritance:

@@ -65,6 +65,8 @@ class Interpreter:
             yield 'require-windows'
         if self.is_osx:
             yield 'no-osx'
+        if not self.is_linux:
+            yield 'require-linux'
 
     @property
     def is_python(self):
@@ -103,8 +105,8 @@ class Interpreter:
         return self.interpreter + [str(ROBOT_DIR / 'testdoc.py')]
 
     @property
-    def tidy(self):
-        return self.interpreter + [str(ROBOT_DIR / 'tidy.py')]
+    def underline(self):
+        return '-' * len(str(self))
 
     def __str__(self):
         return f'{self.name} {self.version} on {self.os}'
