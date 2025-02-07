@@ -14,10 +14,7 @@
 #  limitations under the License.
 
 import re
-try:
-    from urllib import quote
-except ImportError:
-    from urllib.parse import quote
+from urllib.parse import quote
 
 from robot.errors import DataError
 from robot.utils import html_escape, html_format, NormalizedDict
@@ -28,27 +25,29 @@ class DocFormatter:
     _header_regexp = re.compile(r'<h([234])>(.+?)</h\1>')
     _name_regexp = re.compile('`(.+?)`')
 
-    def __init__(self, keywords, data_types, introduction, doc_format='ROBOT'):
+    def __init__(self, keywords, type_info, introduction, doc_format='ROBOT'):
         self._doc_to_html = DocToHtml(doc_format)
-        self._targets = self._get_targets(keywords, data_types, introduction,
+        self._targets = self._get_targets(keywords, introduction,
                                           robot_format=doc_format == 'ROBOT')
+        self._type_info_targets = self._get_type_info_targets(type_info)
 
-    def _get_targets(self, keywords, data_types, introduction, robot_format):
+    def _get_targets(self, keywords, introduction, robot_format):
         targets = {
             'introduction': 'Introduction',
             'library introduction': 'Introduction',
             'importing': 'Importing',
             'library importing': 'Importing',
             'keywords': 'Keywords',
-            'data types': 'Data types'
         }
         for kw in keywords:
             targets[kw.name] = kw.name
-        for dt in data_types:
-            targets[dt.name] = dt.name
         if robot_format:
             for header in self._yield_header_targets(introduction):
                 targets[header] = header
+        return self._escape_and_encode_targets(targets)
+
+    def _get_type_info_targets(self, type_info):
+        targets = {info.name: info.name for info in type_info}
         return self._escape_and_encode_targets(targets)
 
     def _yield_header_targets(self, introduction):
@@ -74,9 +73,13 @@ class DocFormatter:
 
     def _link_keywords(self, match):
         name = match.group(1)
-        if name in self._targets:
-            return '<a href="#%s" class="name">%s</a>' % (self._targets[name], name)
-        return '<span class="name">%s</span>' % name
+        targets = self._targets
+        types = self._type_info_targets
+        if name in targets:
+            return f'<a href="#{targets[name]}" class="name">{name}</a>'
+        elif name in types:
+            return f'<a href="#type-{types[name]}" class="name">{name}</a>'
+        return f'<span class="name">{name}</span>'
 
 
 class DocToHtml:
@@ -91,10 +94,10 @@ class DocToHtml:
                     'HTML': lambda doc: doc,
                     'REST': self._format_rest}[doc_format]
         except KeyError:
-            raise DataError("Invalid documentation format '%s'." % doc_format)
+            raise DataError(f"Invalid documentation format '{doc_format}'.")
 
     def _format_text(self, doc):
-        return '<p style="white-space: pre-wrap">%s</p>' % html_escape(doc)
+        return f'<p style="white-space: pre-wrap">{html_escape(doc)}</p>'
 
     def _format_rest(self, doc):
         try:
@@ -127,7 +130,7 @@ class HtmlToText:
         '&apos;': "'"
     }
 
-    def get_shortdoc_from_html(self, doc):
+    def get_short_doc_from_html(self, doc):
         match = re.search(r'<p.*?>(.*?)</?p>', doc, re.DOTALL)
         if match:
             doc = match.group(1)

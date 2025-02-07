@@ -106,22 +106,28 @@ Retry count must be positive 2
     [Documentation]    FAIL ValueError: Retry count -8 is not positive.
     Wait Until Keyword Succeeds    -8x    1s    No Operation
 
-Invalid Number Of Arguments Inside Wait Until Keyword Succeeds
-    [Documentation]    FAIL Keyword 'BuiltIn.No Operation' expected 0 arguments, got 3.
-    Wait Until Keyword Succeeds    1 second    0.1s    No Operation    No    args    accepted
+No retry after syntax error
+    [Documentation]    FAIL FOR loop cannot be empty.
+    Wait Until Keyword Succeeds    10 second    1s    Syntax Error
 
-Invalid Keyword Inside Wait Until Keyword Succeeds
+No retry if keyword name is not string
     [Documentation]    FAIL Keyword name must be a string.
     ${list} =    Create List    1    2
     Wait Until Keyword Succeeds    1 second    0.1s    ${list}
 
-Keyword Not Found Inside Wait Until Keyword Succeeds
+Retry if keyword is not found
     [Documentation]    FAIL
     ...    Keyword 'Non Existing KW' failed after retrying for 300 milliseconds. \
     ...    The last error was: No keyword with name 'Non Existing KW' found.
     Wait Until Keyword Succeeds    0.3s    0.1s    Non Existing KW
 
-Fail With Nonexisting Variable Inside Wait Until Keyword Succeeds
+Retry if wrong number of arguments
+    [Documentation]    FAIL
+    ...    Keyword 'No Operation' failed after retrying for 50 milliseconds. \
+    ...    The last error was: Keyword 'BuiltIn.No Operation' expected 0 arguments, got 3.
+    Wait Until Keyword Succeeds    0.05 second    0.01s    No Operation    No    args    accepted
+
+Retry if variable is not found
     [Documentation]    FAIL
     ...    Keyword 'Access Nonexisting Variable' failed after retrying 3 times. \
     ...    The last error was: Variable '\${nonexisting}' not found.
@@ -146,10 +152,19 @@ Strict and invalid retry interval
     [Documentation]    FAIL    ValueError: Invalid time string 'invalid:value'.
     Wait Until Keyword Succeeds    3 times    strict: invalid:value    Not executed
 
+Keyword name as variable
+    [Documentation]    FAIL
+    ...    Keyword 'Fail' failed after retrying 2 times. \
+    ...    The last error was: Hello!
+    VAR    ${passing}    Log
+    VAR    ${failing}    Fail
+    Wait Until Keyword Succeeds    2 hours    0    ${passing}    Hello!
+    Wait Until Keyword Succeeds    2 times    0    ${failing}    Hello!
+
 *** Keywords ***
 User Keyword
     ${value} =    Fail Until Retried Often Enough    From User Keyword
-    [Return]    ${value}
+    RETURN    ${value}
 
 Wait Until Inside User Keyword
     Wait Until Keyword Succeeds    3.99 seconds    0.1    Fail Until Retried Often Enough
@@ -166,3 +181,7 @@ Access Nonexisting Variable
 Access Initially Nonexisting Variable
     Log    ${created after accessing first time}
     [Teardown]    Set Test Variable    ${created after accessing first time}    created in keyword teardown
+
+Syntax Error
+    FOR    ${x}    IN    cannot    have    empty    body
+    END

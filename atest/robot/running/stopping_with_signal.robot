@@ -59,8 +59,8 @@ One Signal Should Stop Test Execution Gracefully And Test Case And Suite Teardow
     Start And Send Signal    with_teardown.robot    One SIGINT
     Check Test Cases Have Failed Correctly
     ${tc} =    Get Test Case    Test
-    Check Log Message    ${tc.teardown.msgs[0]}    Logging Test Case Teardown
-    Check Log Message    ${SUITE.teardown.kws[0].msgs[0]}    Logging Suite Teardown
+    Check Log Message    ${tc.teardown[0]}          Logging Test Case Teardown
+    Check Log Message    ${SUITE.teardown[0, 0]}    Logging Suite Teardown
 
 Skip Teardowns After Stopping Gracefully
     Start And Send Signal    with_teardown.robot    One SIGINT    0s    --SkipTeardownOnExit
@@ -68,6 +68,32 @@ Skip Teardowns After Stopping Gracefully
     ${tc} =    Get Test Case    Test
     Teardown Should Not Be Defined    ${tc}
     Teardown Should Not Be Defined    ${SUITE}
+
+SIGINT Signal Should Stop Async Test Execution Gracefully
+    Start And Send Signal    async_stop.robot    One SIGINT    5
+    Check Test Cases Have Failed Correctly
+    ${tc} =    Get Test Case    Test
+    Length Should Be     ${tc[1].body}             1
+    Check Log Message    ${tc[1, 0]}               Start Sleep
+    Length Should Be     ${SUITE.teardown.body}    0
+
+Two SIGINT Signals Should Stop Async Test Execution Forcefully
+    Start And Send Signal    async_stop.robot    Two SIGINTs    5
+    Check Tests Have Been Forced To Shutdown
+
+SIGTERM Signal Should Stop Async Test Execution Gracefully
+    [Tags]    no-windows
+    Start And Send Signal    async_stop.robot    One SIGTERM    5
+    Check Test Cases Have Failed Correctly
+    ${tc} =    Get Test Case    Test
+    Length Should Be     ${tc[1].body}             1
+    Check Log Message    ${tc[1, 0]}               Start Sleep
+    Length Should Be     ${SUITE.teardown.body}    0
+
+Two SIGTERM Signals Should Stop Async Test Execution Forcefully
+    [Tags]    no-windows
+    Start And Send Signal    async_stop.robot    Two SIGTERMs    5
+    Check Tests Have Been Forced To Shutdown
 
 *** Keywords ***
 Start And Send Signal

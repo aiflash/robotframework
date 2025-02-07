@@ -73,14 +73,6 @@ robot.libraries.Remote module
    :undoc-members:
    :show-inheritance:
 
-robot.libraries.Reserved module
--------------------------------
-
-.. automodule:: robot.libraries.Reserved
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 robot.libraries.Screenshot module
 ---------------------------------
 
@@ -109,22 +101,6 @@ robot.libraries.XML module
 --------------------------
 
 .. automodule:: robot.libraries.XML
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-robot.libraries.dialogs\_ipy module
------------------------------------
-
-.. automodule:: robot.libraries.dialogs_ipy
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-robot.libraries.dialogs\_jy module
-----------------------------------
-
-.. automodule:: robot.libraries.dialogs_jy
    :members:
    :undoc-members:
    :show-inheritance:

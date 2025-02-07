@@ -1,10 +1,10 @@
 import unittest
-from os.path import abspath, dirname, join, normpath
+from pathlib import Path
 
 from robot.utils.asserts import assert_equal
 from robot.testdoc import JsonConverter, TestSuiteFactory
 
-DATADIR = join(dirname(abspath(__file__)), '..', '..', 'atest', 'testdata', 'misc')
+DATADIR = (Path(__file__).parent / '../../atest/testdata/misc').resolve()
 
 
 def test_convert(item, **expected):
@@ -17,23 +17,22 @@ class TestJsonConverter(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         suite = TestSuiteFactory(DATADIR, doc='My doc', metadata=['abc:123', '1:2'])
-        output = join(DATADIR, '..', 'output.html')
-        cls.suite = JsonConverter(output).convert(suite)
+        cls.suite = JsonConverter(DATADIR / '../output.html').convert(suite)
 
     def test_suite(self):
         test_convert(self.suite,
-                     source=normpath(DATADIR),
+                     source=str(DATADIR),
                      relativeSource='misc',
                      id='s1',
                      name='Misc',
                      fullName='Misc',
                      doc='<p>My doc</p>',
                      metadata=[('1', '<p>2</p>'), ('abc', '<p>123</p>')],
-                     numberOfTests=182,
+                     numberOfTests=206,
                      tests=[],
                      keywords=[])
         test_convert(self.suite['suites'][0],
-                     source=join(normpath(DATADIR), 'dummy_lib_test.robot'),
+                     source=str(DATADIR / 'dummy_lib_test.robot'),
                      relativeSource='misc/dummy_lib_test.robot',
                      id='s1-s1',
                      name='Dummy Lib Test',
@@ -43,11 +42,10 @@ class TestJsonConverter(unittest.TestCase):
                      numberOfTests=1,
                      suites=[],
                      keywords=[])
-        test_convert(self.suite['suites'][5]['suites'][1]['suites'][-1],
-                     source=join(normpath(DATADIR), 'multiple_suites',
-                                 '02__sub.suite.1', 'second__.Sui.te.2..robot'),
+        test_convert(self.suite['suites'][6]['suites'][1]['suites'][-1],
+                     source=str(DATADIR / 'multiple_suites/02__sub.suite.1/second__.Sui.te.2..robot'),
                      relativeSource='misc/multiple_suites/02__sub.suite.1/second__.Sui.te.2..robot',
-                     id='s1-s6-s2-s2',
+                     id='s1-s7-s2-s2',
                      name='.Sui.te.2.',
                      fullName='Misc.Multiple Suites.Sub.Suite.1..Sui.te.2.',
                      doc='',
@@ -57,8 +55,8 @@ class TestJsonConverter(unittest.TestCase):
                      keywords=[])
 
     def test_multi_suite(self):
-        data = TestSuiteFactory([join(DATADIR, 'normal.robot'),
-                                 join(DATADIR, 'pass_and_fail.robot')])
+        data = TestSuiteFactory([DATADIR / 'normal.robot',
+                                 DATADIR / 'pass_and_fail.robot'])
         suite = JsonConverter().convert(data)
         test_convert(suite,
                      source='',
@@ -72,7 +70,7 @@ class TestJsonConverter(unittest.TestCase):
                      keywords=[],
                      tests=[])
         test_convert(suite['suites'][0],
-                     source=normpath(join(DATADIR, 'normal.robot')),
+                     source=str(DATADIR / 'normal.robot'),
                      relativeSource='',
                      id='s1-s1',
                      name='Normal',
@@ -81,7 +79,7 @@ class TestJsonConverter(unittest.TestCase):
                      metadata=[('Something', '<p>My Value</p>')],
                      numberOfTests=2)
         test_convert(suite['suites'][1],
-                     source=normpath(join(DATADIR, 'pass_and_fail.robot')),
+                     source=str(DATADIR / 'pass_and_fail.robot'),
                      relativeSource='',
                      id='s1-s2',
                      name='Pass And Fail',
@@ -98,15 +96,15 @@ class TestJsonConverter(unittest.TestCase):
                      doc='',
                      tags=[],
                      timeout='')
-        test_convert(self.suite['suites'][4]['tests'][-7],
-                     id='s1-s5-t5',
+        test_convert(self.suite['suites'][5]['tests'][-7],
+                     id='s1-s6-t5',
                      name='Fifth',
                      fullName='Misc.Many Tests.Fifth',
                      doc='',
                      tags=['d1', 'd2', 'f1'],
                      timeout='')
-        test_convert(self.suite['suites'][-2]['tests'][0],
-                     id='s1-s12-t1',
+        test_convert(self.suite['suites'][-4]['tests'][0],
+                     id='s1-s14-t1',
                      name='Default Test Timeout',
                      fullName='Misc.Timeouts.Default Test Timeout',
                      doc='<p>I have a timeout</p>',
@@ -114,13 +112,14 @@ class TestJsonConverter(unittest.TestCase):
                      timeout='1 minute 42 seconds')
 
     def test_timeout(self):
-        test_convert(self.suite['suites'][-2]['tests'][0],
+        suite = self.suite['suites'][-4]
+        test_convert(suite['tests'][0],
                      name='Default Test Timeout',
                      timeout='1 minute 42 seconds')
-        test_convert(self.suite['suites'][-2]['tests'][1],
+        test_convert(suite['tests'][1],
                      name='Test Timeout With Variable',
                      timeout='${100}')
-        test_convert(self.suite['suites'][-2]['tests'][2],
+        test_convert(suite['tests'][2],
                      name='No Timeout',
                      timeout='')
 
@@ -129,45 +128,45 @@ class TestJsonConverter(unittest.TestCase):
                      name='dummykw',
                      arguments='',
                      type='KEYWORD')
-        test_convert(self.suite['suites'][4]['tests'][-7]['keywords'][0],
+        test_convert(self.suite['suites'][5]['tests'][-7]['keywords'][0],
                      name='Log',
                      arguments='Test 5',
                      type='KEYWORD')
 
     def test_suite_setup_and_teardown(self):
-        test_convert(self.suite['suites'][4]['keywords'][0],
+        test_convert(self.suite['suites'][5]['keywords'][0],
                      name='Log',
                      arguments='Setup',
                      type='SETUP')
-        test_convert(self.suite['suites'][4]['keywords'][1],
+        test_convert(self.suite['suites'][5]['keywords'][1],
                      name='No operation',
                      arguments='',
                      type='TEARDOWN')
 
     def test_test_setup_and_teardown(self):
-        test_convert(self.suite['suites'][9]['tests'][0]['keywords'][0],
+        test_convert(self.suite['suites'][10]['tests'][0]['keywords'][0],
                      name='${TEST SETUP}',
                      arguments='',
                      type='SETUP')
-        test_convert(self.suite['suites'][9]['tests'][0]['keywords'][2],
+        test_convert(self.suite['suites'][10]['tests'][0]['keywords'][2],
                      name='${TEST TEARDOWN}',
                      arguments='',
                      type='TEARDOWN')
 
     def test_for_loops(self):
-        test_convert(self.suite['suites'][1]['tests'][0]['keywords'][0],
-                     name='${pet} IN [ cat | dog | horse ]',
+        test_convert(self.suite['suites'][2]['tests'][0]['keywords'][0],
+                     name='${pet} IN [ @{ANIMALS} ]',
                      arguments='',
                      type='FOR')
-        test_convert(self.suite['suites'][1]['tests'][1]['keywords'][0],
+        test_convert(self.suite['suites'][2]['tests'][1]['keywords'][0],
                      name='${i} IN RANGE [ 10 ]',
                      arguments='',
                      type='FOR')
 
     def test_assign(self):
-        test_convert(self.suite['suites'][6]['tests'][1]['keywords'][0],
+        test_convert(self.suite['suites'][7]['tests'][1]['keywords'][0],
                      name='${msg} = Evaluate',
-                     arguments="u'Fran\\\\xe7ais'",
+                     arguments=r"'Fran\\xe7ais'",
                      type='KEYWORD')
 
 
@@ -176,7 +175,7 @@ class TestFormattingAndEscaping(unittest.TestCase):
 
     def setUp(self):
         if not self.suite:
-            suite = TestSuiteFactory(join(DATADIR, 'formatting_and_escaping.robot'),
+            suite = TestSuiteFactory(DATADIR / 'formatting_and_escaping.robot',
                                      name='<suite>', metadata=['CLI>:*bold*'])
             self.__class__.suite = JsonConverter().convert(suite)
 

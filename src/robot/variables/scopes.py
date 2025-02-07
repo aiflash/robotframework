@@ -16,10 +16,11 @@
 import os
 import tempfile
 
-from robot.errors import DataError
+from robot.model import Tags
 from robot.output import LOGGER
-from robot.utils import abspath, find_file, get_error_details, NormalizedDict
+from robot.utils import abspath, find_file, get_error_details, DotDict, NormalizedDict
 
+from .resolvable import GlobalVariableValue
 from .variables import Variables
 
 
@@ -29,6 +30,7 @@ class VariableScopes:
         self._global = GlobalVariables(settings)
         self._suite = None
         self._test = None
+        self._suite_locals = []
         self._scopes = [self._global]
         self._variables_set = SetVariables()
 
@@ -57,16 +59,18 @@ class VariableScopes:
     def start_suite(self):
         self._suite = self._global.copy()
         self._scopes.append(self._suite)
+        self._suite_locals.append(NormalizedDict(ignore='_'))
         self._variables_set.start_suite()
         self._variables_set.update(self._suite)
 
     def end_suite(self):
         self._scopes.pop()
+        self._suite_locals.pop()
         self._suite = self._scopes[-1] if len(self._scopes) > 1 else None
         self._variables_set.end_suite()
 
     def start_test(self):
-        self._test = self._suite.copy()
+        self._test = self._suite.copy(exclude=self._suite_locals[-1])
         self._scopes.append(self._test)
         self._variables_set.start_test()
 
@@ -76,7 +80,8 @@ class VariableScopes:
         self._variables_set.end_test()
 
     def start_keyword(self):
-        kw = self._suite.copy()
+        exclude = self._suite_locals[-1] if self._test else ()
+        kw = self._suite.copy(exclude)
         self._variables_set.start_keyword()
         self._variables_set.update(kw)
         self._scopes.append(kw)
@@ -111,9 +116,9 @@ class VariableScopes:
             else:
                 scope.set_from_file(variables, overwrite=overwrite)
 
-    def set_from_variable_table(self, variables, overwrite=False):
+    def set_from_variable_section(self, variables, overwrite=False):
         for scope in self._scopes_until_suite:
-            scope.set_from_variable_table(variables, overwrite)
+            scope.set_from_variable_section(variables, overwrite)
 
     def resolve_delayed(self):
         for scope in self._scopes_until_suite:
@@ -138,21 +143,26 @@ class VariableScopes:
             return
         for scope in self._scopes_until_suite:
             name, value = self._set_global_suite_or_test(scope, name, value)
-        if children:
-            self._variables_set.set_suite(name, value)
+        self._variables_set.set_suite(name, value, children)
+        # Override possible "suite local variables" (i.e. test variables set on
+        # suite level) if real suite level variable is set.
+        if name in self._suite_locals[-1]:
+            self._suite_locals[-1].pop(name)
 
     def set_test(self, name, value):
-        if self._test is None:
-            raise DataError('Cannot set test variable when no test is started.')
-        for scope in self._scopes_until_test:
-            name, value = self._set_global_suite_or_test(scope, name, value)
-        self._variables_set.set_test(name, value)
+        if self._test:
+            for scope in self._scopes_until_test:
+                name, value = self._set_global_suite_or_test(scope, name, value)
+            self._variables_set.set_test(name, value)
+        else:
+            self.set_suite(name, value)
+            self._suite_locals[-1][name] = None
 
     def set_keyword(self, name, value):
         self.current[name] = value
         self._variables_set.set_keyword(name, value)
 
-    def set_local_variable(self, name, value):
+    def set_local(self, name, value):
         self.current[name] = value
 
     def as_dict(self, decoration=True):
@@ -160,17 +170,19 @@ class VariableScopes:
 
 
 class GlobalVariables(Variables):
+    _import_by_path_ends = ('.py', '/', os.sep, '.yaml', '.yml', '.json')
 
     def __init__(self, settings):
-        Variables.__init__(self)
-        self._set_cli_variables(settings)
+        super().__init__()
         self._set_built_in_variables(settings)
+        self._set_cli_variables(settings)
 
     def _set_cli_variables(self, settings):
-        for path, args in settings.variable_files:
+        for name, args in settings.variable_files:
             try:
-                path = find_file(path, file_type='Variable file')
-                self.set_from_file(path, args)
+                if name.lower().endswith(self._import_by_path_ends):
+                    name = find_file(name, file_type='Variable file')
+                self.set_from_file(name, args)
             except:
                 msg, details = get_error_details()
                 LOGGER.error(msg)
@@ -185,6 +197,13 @@ class GlobalVariables(Variables):
     def _set_built_in_variables(self, settings):
         for name, value in [('${TEMPDIR}', abspath(tempfile.gettempdir())),
                             ('${EXECDIR}', abspath('.')),
+                            ('${OPTIONS}', DotDict({
+                                'include': Tags(settings.include),
+                                'exclude': Tags(settings.exclude),
+                                'skip': Tags(settings.skip),
+                                'skip_on_failure': Tags(settings.skip_on_failure),
+                                'console_width': settings.console_width
+                            })),
                             ('${/}', os.sep),
                             ('${:}', os.pathsep),
                             ('${\\n}', os.linesep),
@@ -193,16 +212,16 @@ class GlobalVariables(Variables):
                             ('${False}', False),
                             ('${None}', None),
                             ('${null}', None),
-                            ('${OUTPUT_DIR}', settings.output_directory),
-                            ('${OUTPUT_FILE}', settings.output or 'NONE'),
-                            ('${REPORT_FILE}', settings.report or 'NONE'),
-                            ('${LOG_FILE}', settings.log or 'NONE'),
-                            ('${DEBUG_FILE}', settings.debug_file or 'NONE'),
+                            ('${OUTPUT_DIR}', str(settings.output_directory)),
+                            ('${OUTPUT_FILE}', str(settings.output or 'NONE')),
+                            ('${REPORT_FILE}', str(settings.report or 'NONE')),
+                            ('${LOG_FILE}', str(settings.log or 'NONE')),
+                            ('${DEBUG_FILE}', str(settings.debug_file or 'NONE')),
                             ('${LOG_LEVEL}', settings.log_level),
                             ('${PREV_TEST_NAME}', ''),
                             ('${PREV_TEST_STATUS}', ''),
                             ('${PREV_TEST_MESSAGE}', '')]:
-            self[name] = value
+            self[name] = GlobalVariableValue(value)
 
 
 class SetVariables:
@@ -242,8 +261,14 @@ class SetVariables:
             if name in scope:
                 scope.pop(name)
 
-    def set_suite(self, name, value):
-        self._suite[name] = value
+    def set_suite(self, name, value, children=False):
+        for scope in reversed(self._scopes):
+            if children:
+                scope[name] = value
+            elif name in scope:
+                scope.pop(name)
+            if scope is self._suite:
+                break
 
     def set_test(self, name, value):
         for scope in reversed(self._scopes):

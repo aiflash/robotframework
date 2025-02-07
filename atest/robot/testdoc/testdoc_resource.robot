@@ -9,7 +9,7 @@ ${OUTFILE}          %{TEMPDIR}/testdoc-output.html
 ${ARGFILE 1}        %{TEMPDIR}/testdoc_argfile_1.txt
 ${ARGFILE 2}        %{TEMPDIR}/testdoc_argfile_2.txt
 
-*** Keyword ***
+*** Keywords ***
 Run TestDoc
     [Arguments]    @{args}    ${rc}=0    ${remove_outfile}=True
     Run Keyword If    ${remove outfile}    Remove File    ${OUTFILE}
@@ -41,8 +41,6 @@ Outfile Should Have Correct Line Separators
     File should have correct line separators    ${OUTFILE}
 
 Output Should Contain Outfile
-    [Documentation]    Printed outfile may be in different formats.
-    ...                IronPython seems to like c:\olddos~1\format~2.ext
     Should Not Contain    ${OUTPUT}    ERROR
     File Should Exist    ${OUTPUT}
     Remove File    ${OUTFILE}

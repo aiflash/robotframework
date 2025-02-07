@@ -192,8 +192,11 @@ Blocks:
 - :class:`~robot.parsing.model.blocks.CommentSection`
 - :class:`~robot.parsing.model.blocks.TestCase`
 - :class:`~robot.parsing.model.blocks.Keyword`
-- :class:`~robot.parsing.model.blocks.For`
 - :class:`~robot.parsing.model.blocks.If`
+- :class:`~robot.parsing.model.blocks.Try`
+- :class:`~robot.parsing.model.blocks.For`
+- :class:`~robot.parsing.model.blocks.While`
+- :class:`~robot.parsing.model.blocks.Group` (new in RF 7.2)
 
 Statements:
 
@@ -205,6 +208,7 @@ Statements:
 - :class:`~robot.parsing.model.statements.Metadata`
 - :class:`~robot.parsing.model.statements.ForceTags`
 - :class:`~robot.parsing.model.statements.DefaultTags`
+- :class:`~robot.parsing.model.statements.SuiteName`
 - :class:`~robot.parsing.model.statements.SuiteSetup`
 - :class:`~robot.parsing.model.statements.SuiteTeardown`
 - :class:`~robot.parsing.model.statements.TestSetup`
@@ -220,16 +224,27 @@ Statements:
 - :class:`~robot.parsing.model.statements.Template`
 - :class:`~robot.parsing.model.statements.Timeout`
 - :class:`~robot.parsing.model.statements.Arguments`
-- :class:`~robot.parsing.model.statements.Return`
+- :class:`~robot.parsing.model.statements.Return` (deprecated, will mean ``ReturnStatement`` in RF 8.0)
+- :class:`~robot.parsing.model.statements.ReturnSetting` (alias for ``Return``, new in RF 6.1)
 - :class:`~robot.parsing.model.statements.KeywordCall`
 - :class:`~robot.parsing.model.statements.TemplateArguments`
-- :class:`~robot.parsing.model.statements.ForHeader`
 - :class:`~robot.parsing.model.statements.IfHeader`
 - :class:`~robot.parsing.model.statements.InlineIfHeader`
 - :class:`~robot.parsing.model.statements.ElseIfHeader`
 - :class:`~robot.parsing.model.statements.ElseHeader`
+- :class:`~robot.parsing.model.statements.TryHeader`
+- :class:`~robot.parsing.model.statements.ExceptHeader`
+- :class:`~robot.parsing.model.statements.FinallyHeader`
+- :class:`~robot.parsing.model.statements.ForHeader`
+- :class:`~robot.parsing.model.statements.WhileHeader`
+- :class:`~robot.parsing.model.statements.GroupHeader` (new in RF 7.2)
+- :class:`~robot.parsing.model.statements.Var` (new in RF 7.0)
 - :class:`~robot.parsing.model.statements.End`
+- :class:`~robot.parsing.model.statements.ReturnStatement`
+- :class:`~robot.parsing.model.statements.Break`
+- :class:`~robot.parsing.model.statements.Continue`
 - :class:`~robot.parsing.model.statements.Comment`
+- :class:`~robot.parsing.model.statements.Config` (new in RF 6.0)
 - :class:`~robot.parsing.model.statements.Error`
 - :class:`~robot.parsing.model.statements.EmptyLine`
 
@@ -248,7 +263,7 @@ case file contains::
     class TestNamePrinter(ModelVisitor):
 
         def visit_File(self, node):
-            print(f"File '{node.source}' has following tests:")
+            print(f"File '{node.source}' has the following tests:")
             # Call `generic_visit` to visit also child nodes.
             self.generic_visit(node)
 
@@ -263,7 +278,7 @@ case file contains::
 When the above code is run using the earlier :file:`example.robot`, the
 output is this::
 
-    File 'example.robot' has following tests:
+    File 'example.robot' has the following tests:
     - Example (on line 2)
     - Second example (on line 5)
 
@@ -471,65 +486,80 @@ get the executable suite by using the
 """
 
 from robot.parsing import (
-    get_tokens,
-    get_resource_tokens,
-    get_init_tokens,
-    get_model,
-    get_resource_model,
-    get_init_model,
-    Token
+    get_tokens as get_tokens,
+    get_resource_tokens as get_resource_tokens,
+    get_init_tokens as get_init_tokens,
+    get_model as get_model,
+    get_resource_model as get_resource_model,
+    get_init_model as get_init_model,
+    Token as Token
 )
 from robot.parsing.model.blocks import (
-    File,
-    SettingSection,
-    VariableSection,
-    TestCaseSection,
-    KeywordSection,
-    CommentSection,
-    TestCase,
-    Keyword,
-    For,
-    If
+    File as File,
+    SettingSection as SettingSection,
+    VariableSection as VariableSection,
+    TestCaseSection as TestCaseSection,
+    KeywordSection as KeywordSection,
+    CommentSection as CommentSection,
+    TestCase as TestCase,
+    Keyword as Keyword,
+    If as If,
+    Try as Try,
+    For as For,
+    While as While,
+    Group as Group
 )
 from robot.parsing.model.statements import (
-    SectionHeader,
-    LibraryImport,
-    ResourceImport,
-    VariablesImport,
-    Documentation,
-    Metadata,
-    ForceTags,
-    DefaultTags,
-    SuiteSetup,
-    SuiteTeardown,
-    TestSetup,
-    TestTeardown,
-    TestTemplate,
-    TestTimeout,
-    Variable,
-    TestCaseName,
-    KeywordName,
-    Setup,
-    Teardown,
-    Tags,
-    Template,
-    Timeout,
-    Arguments,
-    Return,
-    KeywordCall,
-    TemplateArguments,
-    ForHeader,
-    IfHeader,
-    InlineIfHeader,
-    ElseIfHeader,
-    ElseHeader,
-    End,
-    ReturnStatement,
-    Comment,
-    Error,
-    EmptyLine
+    SectionHeader as SectionHeader,
+    LibraryImport as LibraryImport,
+    ResourceImport as ResourceImport,
+    VariablesImport as VariablesImport,
+    Documentation as Documentation,
+    Metadata as Metadata,
+    SuiteName as SuiteName,
+    SuiteSetup as SuiteSetup,
+    SuiteTeardown as SuiteTeardown,
+    TestSetup as TestSetup,
+    TestTeardown as TestTeardown,
+    TestTemplate as TestTemplate,
+    TestTimeout as TestTimeout,
+    TestTags as TestTags,
+    DefaultTags as DefaultTags,
+    KeywordTags as KeywordTags,
+    Variable as Variable,
+    TestCaseName as TestCaseName,
+    KeywordName as KeywordName,
+    Setup as Setup,
+    Teardown as Teardown,
+    Tags as Tags,
+    Template as Template,
+    Timeout as Timeout,
+    Arguments as Arguments,
+    Return as Return,
+    ReturnSetting as ReturnSetting,
+    KeywordCall as KeywordCall,
+    TemplateArguments as TemplateArguments,
+    IfHeader as IfHeader,
+    InlineIfHeader as InlineIfHeader,
+    ElseIfHeader as ElseIfHeader,
+    ElseHeader as ElseHeader,
+    TryHeader as TryHeader,
+    ExceptHeader as ExceptHeader,
+    FinallyHeader as FinallyHeader,
+    ForHeader as ForHeader,
+    WhileHeader as WhileHeader,
+    GroupHeader as GroupHeader,
+    End as End,
+    Var as Var,
+    ReturnStatement as ReturnStatement,
+    Continue as Continue,
+    Break as Break,
+    Comment as Comment,
+    Config as Config,
+    Error as Error,
+    EmptyLine as EmptyLine
 )
 from robot.parsing.model.visitor import (
-    ModelTransformer,
-    ModelVisitor
+    ModelTransformer as ModelTransformer,
+    ModelVisitor as ModelVisitor
 )

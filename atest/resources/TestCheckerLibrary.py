@@ -1,113 +1,224 @@
+import json
 import os
 import re
+from datetime import datetime
+from pathlib import Path
 
+from jsonschema import Draft202012Validator
 from xmlschema import XMLSchema
 
-from robot import utils
 from robot.api import logger
-from robot.utils.asserts import assert_equal
-from robot.result import (ExecutionResultBuilder, For, If, ForIteration, Keyword,
-                          Result, ResultVisitor, TestCase, TestSuite)
-from robot.result.model import Body, ForIterations, IfBranches, IfBranch
 from robot.libraries.BuiltIn import BuiltIn
+from robot.libraries.Collections import Collections
+from robot.result import (
+    Break, Continue, Error, ExecutionResult, ExecutionResultBuilder, For,
+    ForIteration, Group, If, IfBranch, Keyword, Result, ResultVisitor, Return,
+    TestCase, TestSuite, Try, TryBranch, Var, While, WhileIteration
+)
+from robot.result.executionerrors import ExecutionErrors
+from robot.result.model import Body, Iterations
+from robot.utils.asserts import assert_equal
+from robot.utils import eq, get_error_details, is_truthy, Matcher
 
 
-class NoSlotsKeyword(Keyword):
+class WithBodyTraversing:
+    body: Body
+
+    def __getitem__(self, index):
+        if isinstance(index, str):
+            index = tuple(int(i) for i in index.split(','))
+        if isinstance(index, (int, slice)):
+            return self.body[index]
+        if isinstance(index, tuple):
+            item = self
+            for i in index:
+                item = item.body[int(i)]
+            return item
+        raise TypeError(f"Invalid index {repr(index)}.")
+
+    @property
+    def keywords(self):
+        return self.body.filter(keywords=True)
+
+    @property
+    def messages(self):
+        return self.body.filter(messages=True)
+
+    @property
+    def non_messages(self):
+        return self.body.filter(messages=False)
+
+
+class ATestKeyword(Keyword, WithBodyTraversing):
     pass
 
 
-class NoSlotsFor(For):
+class ATestFor(For, WithBodyTraversing):
     pass
 
 
-class NoSlotsIf(If):
+class ATestWhile(While, WithBodyTraversing):
     pass
 
 
-class NoSlotsBody(Body):
-    keyword_class = NoSlotsKeyword
-    for_class = NoSlotsFor
-    if_class = NoSlotsIf
+class ATestGroup(Group, WithBodyTraversing):
+    pass
 
 
-class NoSlotsIfBranch(IfBranch):
-    body_class = NoSlotsBody
+class ATestIf(If, WithBodyTraversing):
+    pass
 
 
-class NoSlotsIfBranches(IfBranches):
-    if_branch_class = NoSlotsIfBranch
+class ATestTry(Try, WithBodyTraversing):
+    pass
 
 
-class NoSlotsForIteration(ForIteration):
-    body_class = NoSlotsBody
+class ATestVar(Var, WithBodyTraversing):
+    pass
 
 
-class NoSlotsForIterations(ForIterations):
-    for_iteration_class = NoSlotsForIteration
-    keyword_class = NoSlotsKeyword
+class ATestReturn(Return, WithBodyTraversing):
+    pass
 
 
-NoSlotsKeyword.body_class = NoSlotsBody
-NoSlotsFor.body_class = NoSlotsForIterations
-NoSlotsIf.body_class = NoSlotsIfBranches
+class ATestBreak(Break, WithBodyTraversing):
+    pass
 
 
-class NoSlotsTestCase(TestCase):
-    fixture_class = NoSlotsKeyword
-    body_class = NoSlotsBody
+class ATestContinue(Continue, WithBodyTraversing):
+    pass
 
 
-class NoSlotsTestSuite(TestSuite):
-    fixture_class = NoSlotsKeyword
-    test_class = NoSlotsTestCase
+class ATestError(Error, WithBodyTraversing):
+    pass
+
+
+class ATestBody(Body):
+    keyword_class = ATestKeyword
+    for_class = ATestFor
+    if_class = ATestIf
+    try_class = ATestTry
+    while_class = ATestWhile
+    group_class = ATestGroup
+    var_class = ATestVar
+    return_class = ATestReturn
+    break_class = ATestBreak
+    continue_class = ATestContinue
+    error_class = ATestError
+
+
+class ATestIfBranch(IfBranch, WithBodyTraversing):
+    body_class = ATestBody
+
+
+class ATestTryBranch(TryBranch, WithBodyTraversing):
+    body_class = ATestBody
+
+
+class ATestForIteration(ForIteration, WithBodyTraversing):
+    body_class = ATestBody
+
+
+class ATestWhileIteration(WhileIteration, WithBodyTraversing):
+    body_class = ATestBody
+
+
+class ATestIterations(Iterations, WithBodyTraversing):
+    keyword_class = ATestKeyword
+
+
+ATestKeyword.body_class = ATestVar.body_class = ATestReturn.body_class \
+    = ATestBreak.body_class = ATestContinue.body_class \
+    = ATestError.body_class = ATestGroup.body_class \
+    = ATestBody
+ATestFor.iterations_class = ATestWhile.iterations_class = ATestIterations
+ATestFor.iteration_class = ATestForIteration
+ATestWhile.iteration_class = ATestWhileIteration
+ATestIf.branch_class = ATestIfBranch
+ATestTry.branch_class = ATestTryBranch
+
+
+class ATestTestCase(TestCase, WithBodyTraversing):
+    fixture_class = ATestKeyword
+    body_class = ATestBody
+
+
+class ATestTestSuite(TestSuite):
+    fixture_class = ATestKeyword
+    test_class = ATestTestCase
 
 
 class TestCheckerLibrary:
     ROBOT_LIBRARY_SCOPE = 'GLOBAL'
 
     def __init__(self):
-        self.schema = XMLSchema('doc/schema/robot.02.xsd')
+        self.xml_schema = XMLSchema('doc/schema/result.xsd')
+        with open('doc/schema/result.json', encoding='UTF-8') as f:
+            self.json_schema = Draft202012Validator(json.load(f))
 
-    def process_output(self, path, validate=None):
+    def process_output(self, path: 'None|Path', validate: 'bool|None' = None):
         set_suite_variable = BuiltIn().set_suite_variable
-        if not path or path.upper() == 'NONE':
+        if path is None:
             set_suite_variable('$SUITE', None)
             logger.info("Not processing output.")
             return
-        path = path.replace('/', os.sep)
         if validate is None:
-            validate = os.getenv('ATEST_VALIDATE_OUTPUT', False)
-        if utils.is_truthy(validate):
-            self._validate_output(path)
+            validate = is_truthy(os.getenv('ATEST_VALIDATE_OUTPUT', False))
+        if validate:
+            if path.suffix.lower() == '.json':
+                self.validate_json_output(path)
+            else:
+                self._validate_output(path)
         try:
-            logger.info("Processing output '%s'." % path)
-            result = Result(root_suite=NoSlotsTestSuite())
-            ExecutionResultBuilder(path).build(result)
+            logger.info(f"Processing output '{path}'.")
+            if path.suffix.lower() == '.json':
+                result = self._build_result_from_json(path)
+            else:
+                result = self._build_result_from_xml(path)
         except:
             set_suite_variable('$SUITE', None)
-            msg, details = utils.get_error_details()
+            msg, details = get_error_details()
             logger.info(details)
-            raise RuntimeError('Processing output failed: %s' % msg)
+            raise RuntimeError(f'Processing output failed: {msg}')
         result.visit(ProcessResults())
         set_suite_variable('$SUITE', result.suite)
         set_suite_variable('$STATISTICS', result.statistics)
         set_suite_variable('$ERRORS', result.errors)
 
+    def _build_result_from_xml(self, path):
+        result = Result(source=path, suite=ATestTestSuite())
+        ExecutionResultBuilder(path).build(result)
+        return result
+
+    def _build_result_from_json(self, path):
+        with open(path, encoding='UTF-8') as file:
+            data = json.load(file)
+        return Result(source=path,
+                      suite=ATestTestSuite.from_dict(data['suite']),
+                      errors=ExecutionErrors(data.get('errors')),
+                      rpa=data.get('rpa'),
+                      generator=data.get('generator'),
+                      generation_time=datetime.fromisoformat(data['generated']))
+
     def _validate_output(self, path):
-        schema_version = self._get_schema_version(path)
-        if schema_version != self.schema.version:
-            raise AssertionError(
-                'Incompatible schema versions. Schema has `version="%s"` '
-                'but output file has `schemaversion="%s"`.'
-                % (self.schema.version, schema_version)
-        )
-        self.schema.validate(path)
+        version = self._get_schema_version(path)
+        if not version:
+            raise ValueError('Schema version not found from XML output.')
+        if version != self.xml_schema.version:
+            raise ValueError(f'Incompatible schema versions. '
+                             f'Schema has `version="{self.xml_schema.version}"` but '
+                             f'output file has `schemaversion="{version}"`.')
+        self.xml_schema.validate(path)
 
     def _get_schema_version(self, path):
-        with open(path, encoding='UTF-8') as f:
-            for line in f:
+        with open(path, encoding='UTF-8') as file:
+            for line in file:
                 if line.startswith('<robot'):
-                    return re.search('schemaversion="(\d+)"', line).group(1)
+                    return re.search(r'schemaversion="(\d+)"', line).group(1)
+
+    def validate_json_output(self, path: Path):
+        with path.open(encoding='UTF') as file:
+            self.json_schema.validate(json.load(file))
 
     def get_test_case(self, name):
         suite = BuiltIn().get_variable_value('${SUITE}')
@@ -123,7 +234,7 @@ class TestCheckerLibrary:
 
     def get_tests_from_suite(self, suite, name=None):
         tests = [test for test in suite.tests
-                 if name is None or utils.eq(test.name, name)]
+                 if name is None or eq(test.name, name)]
         for subsuite in suite.suites:
             tests.extend(self.get_tests_from_suite(subsuite, name))
         return tests
@@ -138,7 +249,7 @@ class TestCheckerLibrary:
         raise RuntimeError(err % (name, suite.name))
 
     def _get_suites_from_suite(self, suite, name):
-        suites = [suite] if utils.eq(suite.name, name) else []
+        suites = [suite] if eq(suite.name, name) else []
         for subsuite in suite.suites:
             suites.extend(self._get_suites_from_suite(subsuite, name))
         return suites
@@ -166,16 +277,15 @@ class TestCheckerLibrary:
         if test.exp_status != test.status:
             if test.exp_status == 'PASS':
                 if test.status == 'FAIL':
-                    msg = ("Test '%s' was expected to PASS but it FAILED.\n\n"
-                           "Error message:\n%s" % (test.name, test.message))
+                    msg = f"Error message:\n{test.message}"
                 else:
-                    msg = ("Test '%s' was expected to PASS but it was SKIPPED.\n\n"
-                           "Test message:\n%s" % (test.name, test.message))
+                    msg = f"Test message:\n{test.message}"
             else:
-                msg = ("Test '%s' was expected to %s but it %sED.\n\n"
-                       "Expected message:\n%s" % (test.name, test.exp_status,
-                                                  test.status, test.exp_message))
-            raise AssertionError(msg)
+                msg = f"Expected message:\n{test.exp_message}"
+            raise AssertionError(
+                f"Status of '{test.name}' should have been {test.exp_status} "
+                f"but it was {test.status}.\n\n{msg}"
+            )
         if test.exp_message == test.message:
             return
         if test.exp_message.startswith('REGEXP:'):
@@ -184,16 +294,16 @@ class TestCheckerLibrary:
                 return
         if test.exp_message.startswith('GLOB:'):
             pattern = self._get_pattern(test, 'GLOB:')
-            matcher = utils.Matcher(pattern, caseless=False, spaceless=False)
+            matcher = Matcher(pattern, caseless=False, spaceless=False)
             if matcher.match(test.message):
                 return
         if test.exp_message.startswith('STARTS:'):
             start = self._get_pattern(test, 'STARTS:')
             if test.message.startswith(start):
                 return
-        raise AssertionError("Test '%s' had wrong message.\n\n"
-                             "Expected:\n%s\n\nActual:\n%s\n"
-                             % (test.name, test.exp_message, test.message))
+        raise AssertionError(f"Test '{test.name}' had wrong message.\n\n"
+                             f"Expected:\n{test.exp_message}\n\n"
+                             f"Actual:\n{test.message}\n")
 
     def _get_pattern(self, test, prefix):
         pattern = test.exp_message[len(prefix):].strip()
@@ -221,15 +331,17 @@ class TestCheckerLibrary:
         if len(tests) != len(expected):
             raise AssertionError("Wrong number of tests." + tests_msg)
         for test in tests:
-            logger.info("Verifying test '%s'" % test.name)
+            logger.info(f"Verifying test '{test.name}'")
             try:
                 status = self._find_expected_status(test.name, expected)
             except IndexError:
-                raise AssertionError("Test '%s' was not expected to be run.%s"
-                                     % (test.name, tests_msg))
+                raise AssertionError(f"Test '{test.name}' was not expected to be run."
+                                     + tests_msg)
             expected.pop(expected.index((test.name, status)))
             if status and ':' in status:
                 status, message = status.split(':', 1)
+            elif status:
+                message = ''
             else:
                 message = None
             self._check_test_status(test, status, message)
@@ -252,14 +364,12 @@ class TestCheckerLibrary:
         expected = sorted(expected)
         actual = sorted(s.name for s in suite.suites)
         if len(actual) != len(expected):
-            raise AssertionError("Wrong number of suites.\n"
-                                 "Expected (%d): %s\n"
-                                 "Actual   (%d): %s"
-                                 % (len(expected), ', '.join(expected),
-                                    len(actual), ', '.join(actual)))
+            raise AssertionError(f"Wrong number of suites.\n"
+                                 f"Expected ({len(expected)}): {', '.join(expected)}\n"
+                                 f"Actual   ({len(actual)}): {', '.join(actual)}")
         for name in expected:
-            if not utils.Matcher(name).match_any(actual):
-                raise AssertionError('Suite %s not found' % name)
+            if not Matcher(name).match_any(actual):
+                raise AssertionError(f'Suite {name} not found.')
 
     def should_contain_tags(self, test, *tags):
         logger.info('Test has tags', test.tags)
@@ -269,7 +379,7 @@ class TestCheckerLibrary:
             assert_equal(act, exp)
 
     def should_contain_keywords(self, item, *kw_names):
-        actual_names = [kw.name for kw in item.kws]
+        actual_names = [kw.full_name for kw in item.keywords]
         assert_equal(len(actual_names), len(kw_names), 'Wrong number of keywords')
         for act, exp in zip(actual_names, kw_names):
             assert_equal(act, exp)
@@ -284,17 +394,44 @@ class TestCheckerLibrary:
         self.should_contain_keywords(test.body[kw_index], *kw_names)
         return test
 
-    def check_log_message(self, item, msg, level='INFO', html=False, pattern=False):
+    def check_log_message(self, item, expected, level='INFO', html=False, pattern=False, traceback=False):
+        message = item.message.rstrip()
+        if traceback:
+            # Remove `^^^` lines added by Python 3.11+.
+            message = '\n'.join(line for line in message.splitlines()
+                                if '^' not in line or line.strip('^ '))
         b = BuiltIn()
         matcher = b.should_match if pattern else b.should_be_equal
-        matcher(item.message.rstrip(), msg.rstrip(), 'Wrong log message')
-        b.should_be_equal(item.level, 'INFO' if level == 'HTML' else level, 'Wrong log level')
+        matcher(message, expected.rstrip(), 'Wrong log message')
+        if level != 'IGNORE':
+            b.should_be_equal(item.level, 'INFO' if level == 'HTML' else level, 'Wrong log level')
         b.should_be_equal(str(item.html), str(html or level == 'HTML'), 'Wrong HTML status')
+
+    def outputs_should_contain_same_data(self, output1, output2, ignore_timestamps=False):
+        dictionaries_should_be_equal = Collections().dictionaries_should_be_equal
+        if ignore_timestamps:
+            ignore_keys = ['start_time', 'end_time', 'elapsed_time', 'timestamp']
+        else:
+            ignore_keys = None
+        result1 = ExecutionResult(output1)
+        result2 = ExecutionResult(output2)
+        dictionaries_should_be_equal(result1.suite.to_dict(),
+                                     result2.suite.to_dict(),
+                                     ignore_keys=ignore_keys)
+        dictionaries_should_be_equal(result1.statistics.to_dict(),
+                                     result2.statistics.to_dict(),
+                                     ignore_keys=ignore_keys)
+        # Use `zip(..., strict=True)` when Python 3.10 is minimum version.
+        assert len(result1.errors) == len(result2.errors)
+        for msg1, msg2 in zip(result1.errors, result2.errors):
+            dictionaries_should_be_equal(msg1.to_dict(),
+                                         msg2.to_dict(),
+                                         ignore_keys=ignore_keys)
 
 
 class ProcessResults(ResultVisitor):
 
-    def start_test(self, test):
+    def visit_test(self, test):
         for status in 'FAIL', 'SKIP', 'PASS':
             if status in test.doc:
                 test.exp_status = status
@@ -303,30 +440,3 @@ class ProcessResults(ResultVisitor):
         else:
             test.exp_status = 'PASS'
             test.exp_message = ''
-        test.kws = list(test.body)
-        test.keyword_count = test.kw_count = len(test.kws)
-
-    def start_keyword(self, kw):
-        self._add_kws_and_msgs(kw)
-
-    def _add_kws_and_msgs(self, item):
-        item.kws = item.body.filter(messages=False)
-        item.msgs = item.body.filter(messages=True)
-        item.keyword_count = item.kw_count = len(item.kws)
-        item.message_count = item.msg_count = len(item.msgs)
-
-    def start_for(self, for_):
-        self._add_kws_and_msgs(for_)
-
-    def start_for_iteration(self, iteration):
-        self._add_kws_and_msgs(iteration)
-
-    def start_if(self, if_):
-        self._add_kws_and_msgs(if_)
-
-    def start_if_branch(self, branch):
-        self._add_kws_and_msgs(branch)
-
-    def visit_errors(self, errors):
-        errors.msgs = errors.messages
-        errors.message_count = errors.msg_count = len(errors.messages)

@@ -15,6 +15,7 @@ Case-insensitive
     [Documentation]    FAIL yötä != päivää
     test value      TEST VALUE      ignore_case=True
     HYVÄÄ YÖTÄ      hyvää yötä      repr=True    ignore_case=yes
+    Straße          strasse         ignore_case=True
     ${42}           ${42}           ignore_case=True
     Yötä            Päivää          ignore_case=yep!
 
@@ -86,11 +87,11 @@ Multiline comparison uses diff
     ...    --- first
     ...    +++ second
     ...    @@ -1,3 +1,6 @@
-    ...    \ foo
-    ...    \ bar
+    ...     foo
+    ...     bar
     ...    +gar
     ...    +
-    ...    \ dar
+    ...     dar
     ...    +
     foo\nbar\ndar\n    foo\nbar\ngar\n\ndar\n\n
 
@@ -100,11 +101,11 @@ Multiline comparison with custom message
     ...    --- first
     ...    +++ second
     ...    @@ -1,3 +1,6 @@
-    ...    \ foo
-    ...    \ bar
+    ...     foo
+    ...     bar
     ...    +gar
     ...    +
-    ...    \ dar
+    ...     dar
     ...    +
     foo\nbar\ndar\n    foo\nbar\ngar\n\ndar\n\n    msg=Custom message of mine
 
@@ -153,7 +154,7 @@ formatter=repr/ascii with non-ASCII characters
     ...
     ...    6) '\\xc4' != 'A\\u0308'
     ...
-    ...    7) {'A': 2, 'a': 1, 'Ä': 4, 'ä': 3} != {'a': 1}
+    ...    7) {'a': 1, 'A': 2, 'ä': 3, 'Ä': 4} != {'a': 1}
     ...
     ...    8) ${ASCII DICT} != {'a': 1}
     Ä          A
@@ -172,22 +173,22 @@ formatter=repr with multiline
     ...    --- first
     ...    +++ second
     ...    @@ -1,3 +1,6 @@
-    ...   \ foo
-    ...   \ bar
+    ...     foo
+    ...     bar
     ...    +gar
     ...    +
-    ...   \ dar
+    ...     dar
     ...    +
     ...
     ...    2) Multiline strings are different:
     ...    --- first
     ...    +++ second
     ...    @@ -1,3 +1,6 @@
-    ...   \ 'foo\\n'
-    ...   \ 'bar\\n'
+    ...     'foo\\n'
+    ...     'bar\\n'
     ...    +'gar\\n'
     ...    +'\\n'
-    ...   \ 'dar\\n'
+    ...     'dar\\n'
     ...    +'\\n'
     foo\nbar\ndar\n    foo\nbar\ngar\n\ndar\n\n
     foo\nbar\ndar\n    foo\nbar\ngar\n\ndar\n\n   formatter=repr
@@ -226,34 +227,34 @@ formatter=repr/ascii with multiline and non-ASCII characters
     ...    --- first
     ...    +++ second
     ...    @@ -1,3 +1,3 @@
-    ...   \ Å
+    ...     Å
     ...    -Ä
     ...    +Ä
-    ...   \ Ö
+    ...     Ö
     ...
     ...    2) Multiline strings are different:
     ...    --- first
     ...    +++ second
     ...    @@ -1,3 +1,3 @@
-    ...   \ 'Å\\n'
+    ...     'Å\\n'
     ...    -'Ä\\n'
     ...    +'Ä\\n'
-    ...   \ 'Ö\\n'
+    ...     'Ö\\n'
     ...
     ...    3) Multiline strings are different:
     ...    --- first
     ...    +++ second
     ...    @@ -1,3 +1,3 @@
-    ...   \ '\\xc5\\n'
+    ...     '\\xc5\\n'
     ...    -'\\xc4\\n'
     ...    +'A\\u0308\\n'
-    ...   \ '\\xd6\\n'
+    ...     '\\xd6\\n'
     Å\nÄ\n\Ö\n    Å\nA\u0308\n\Ö\n
     Å\nÄ\n\Ö\n    Å\nA\u0308\n\Ö\n    formatter=repr
     Å\nÄ\n\Ö\n    Å\nA\u0308\n\Ö\n    formatter=ascii
 
 Invalid formatter
-    [Documentation]    FAIL ValueError: Invalid formatter 'invalid'. Available 'str', 'repr' and 'ascii'.
+    [Documentation]    FAIL ValueError: Invalid formatter 'invalid'. Available 'str', 'repr', 'ascii', 'len', and 'type'.
     1    1    formatter=invalid
 
 Tuple and list with same items fail
@@ -290,12 +291,12 @@ Should Not Be Equal
     foo    foo
 
 Should Not Be Equal case-insensitive
-    [Documentation]     FAIL foo == foo
+    [Documentation]     FAIL fööss == fööss
     [Template]  Should Not Be Equal
     test value      TEST VALUE1     ignore_case=True
     HYVÄÄ YÖTÄ      hyvää yötä1     ignore_case=True
     ${42}           ${43}           ignore_case=True
-    foo             FOO             ignore_case=True
+    fööß            FÖÖSS           ignore_case=True
 
 Should Not Be Equal without leading spaces
     [Documentation]     FAIL Several failures occurred:

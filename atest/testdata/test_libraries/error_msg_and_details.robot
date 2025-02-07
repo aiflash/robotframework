@@ -1,15 +1,23 @@
-*** Setting ***
+*** Settings ***
 Library           ExampleLibrary
 Library           nön_äscii_dïr/valid.py
 
-*** Test Case ***
-Generic Failure
+*** Test Cases ***
+Generic failure
     [Documentation]    FAIL foo != bar
     Exception    AssertionError    foo != bar
 
-Exception Name Suppressed in Error Message
+Exception name suppressed explicitly
     [Documentation]    FAIL No Exception Name
     Fail with suppressed exception name    No Exception Name
+
+Even suppressed name is included if message is empty
+    [Documentation]    FAIL ExceptionWithSuppressedName
+    Fail with suppressed exception name    ${EMPTY}
+
+Exception with empty message and name is handled properly
+    [Documentation]    FAIL
+    Exception with empty message and name
 
 Non Generic Failure
     [Documentation]    FAIL FloatingPointError: Too Large A Number !!
@@ -43,6 +51,14 @@ Multiline Error With CRLF
 External Failure
     [Documentation]    FAIL UnboundLocalError: Raised from an external object!
     External Exception    UnboundLocalError    Raised from an external object!
+
+Implicitly chained exception
+    [Documentation]    FAIL NameError: name 'ooops' is not defined
+    Implicitly chained exception
+
+Explicitly chained exception
+    [Documentation]    FAIL Expected error
+    Explicitly chained exception
 
 Failure in library in non-ASCII directory
     [Documentation]    FAIL Keyword in 'nön_äscii_dïr' fails!

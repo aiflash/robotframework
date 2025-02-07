@@ -1,3 +1,5 @@
+language: fr
+
 *** Settings ***
 Test Setup        No-break space       : :
 Test Teardown     Ogham space mark     : :
@@ -51,6 +53,9 @@ Ideographic　space
     Should　be　equal    ${arg}    ${IDEOGRAPHIC SPACE}
     Should　be　equal    ${arg}    ${IDEOGRAPHIC　SPACE}
 
+Embedded ${args} and BDD　prefixes
+    Should be equal    ${args}    args
+
 *** Test Cases　***
 In header
     No operation
@@ -82,3 +87,14 @@ In ELSE IF
     ELSE　IF    True
         Log    Should be executed
     END
+
+In inline ELSE IF
+    ${x} =    IF    False    Not run    ELSE IF    True    Set Variable    NBSP
+    ${y} =    IF    False    Not run    ELSE IF    True    Set Variable    OGHAM
+    ${z} =    IF    False    Not run    ELSE　IF    True    Set Variable    IDEOGRAPHIC
+    Should Be Equal    ${x}:${y}:${z}    NBSP:OGHAM:IDEOGRAPHIC
+
+With embedded arguments and BDD prefixes
+    Given embedded args and BDD prefixes
+    then embedded args　and bdd prefixes
+    Étant Donné embedded　args AND BDD　prefixes

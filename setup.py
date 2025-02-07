@@ -6,7 +6,7 @@ from setuptools import find_packages, setup
 
 # Version number typically updated by running `invoke set-version <version>`.
 # Run `invoke --help set-version` or see tasks.py for details.
-VERSION = '5.0.dev1'
+VERSION = '7.2.3.dev1'
 with open(join(dirname(abspath(__file__)), 'README.rst')) as f:
     LONG_DESCRIPTION = f.read()
     base_url = 'https://github.com/robotframework/robotframework/blob/master'
@@ -22,11 +22,12 @@ License :: OSI Approved :: Apache Software License
 Operating System :: OS Independent
 Programming Language :: Python :: 3
 Programming Language :: Python :: 3 :: Only
-Programming Language :: Python :: 3.6
-Programming Language :: Python :: 3.7
 Programming Language :: Python :: 3.8
 Programming Language :: Python :: 3.9
 Programming Language :: Python :: 3.10
+Programming Language :: Python :: 3.11
+Programming Language :: Python :: 3.12
+Programming Language :: Python :: 3.13
 Programming Language :: Python :: Implementation :: CPython
 Programming Language :: Python :: Implementation :: PyPy
 Topic :: Software Development :: Testing
@@ -40,7 +41,7 @@ KEYWORDS = ('robotframework automation testautomation rpa '
             'testing acceptancetesting atdd bdd')
 PACKAGE_DATA = [join('htmldata', directory, pattern)
                 for directory in ('rebot', 'libdoc', 'testdoc', 'lib', 'common')
-                for pattern in ('*.html', '*.css', '*.js')]
+                for pattern in ('*.html', '*.css', '*.js')] + ['api/py.typed']
 
 
 setup(
@@ -48,15 +49,22 @@ setup(
     version      = VERSION,
     author       = 'Pekka Kl\xe4rck',
     author_email = 'peke@eliga.fi',
-    url          = 'https://robotframework.org/',
-    download_url = 'https://pypi.org/project/robotframework/',
+    url          = 'https://robotframework.org',
+    project_urls = {
+        'Source': 'https://github.com/robotframework/robotframework',
+        'Issue Tracker': 'https://github.com/robotframework/robotframework/issues',
+        'Documentation': 'https://robotframework.org/robotframework',
+        'Release Notes': f'https://github.com/robotframework/robotframework/blob/master/doc/releasenotes/rf-{VERSION}.rst',
+        'Slack': 'http://slack.robotframework.org',
+    },
+    download_url = 'https://pypi.org/project/robotframework',
     license      = 'Apache License 2.0',
     description  = DESCRIPTION,
     long_description = LONG_DESCRIPTION,
     long_description_content_type = 'text/x-rst',
     keywords     = KEYWORDS,
     platforms    = 'any',
-    python_requires='>=3.6',
+    python_requires='>=3.8',
     classifiers  = CLASSIFIERS,
     package_dir  = {'': 'src'},
     package_data = {'robot': PACKAGE_DATA},

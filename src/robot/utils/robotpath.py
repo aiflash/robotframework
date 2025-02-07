@@ -16,14 +16,14 @@
 import os
 import os.path
 import sys
+from pathlib import Path
 from urllib.request import pathname2url as path_to_url
 
 from robot.errors import DataError
 
 from .encoding import system_decode
 from .platform import WINDOWS
-from .robottypes import is_unicode
-from .unic import unic
+from .unic import safe_str
 
 
 if WINDOWS:
@@ -44,9 +44,11 @@ def normpath(path, case_normalize=False):
        That includes Windows and also OSX in default configuration.
     4. Turn ``c:`` into ``c:\\`` on Windows instead of keeping it as ``c:``.
     """
-    if not is_unicode(path):
+    if isinstance(path, Path):
+        path = str(path)
+    elif not isinstance(path, str):
         path = system_decode(path)
-    path = unic(path)  # Handles NFC normalization on OSX
+    path = safe_str(path)  # Handles NFC normalization on OSX
     path = os.path.normpath(path)
     if case_normalize and CASE_INSENSITIVE_FILESYSTEM:
         path = path.lower()
@@ -135,11 +137,7 @@ def find_file(path, basedir='.', file_type=None):
         ret = _find_relative_path(path, basedir)
     if ret:
         return ret
-    default = file_type or 'File'
-    file_type = {'Library': 'Test library',
-                 'Variables': 'Variable file',
-                 'Resource': 'Resource file'}.get(file_type, default)
-    raise DataError("%s '%s' does not exist." % (file_type, path))
+    raise DataError(f"{file_type or 'File'} '{path}' does not exist.")
 
 
 def _find_absolute_path(path):
@@ -152,7 +150,7 @@ def _find_relative_path(path, basedir):
     for base in [basedir] + sys.path:
         if not (base and os.path.isdir(base)):
             continue
-        if not is_unicode(base):
+        if not isinstance(base, str):
             base = system_decode(base)
         ret = os.path.abspath(os.path.join(base, path))
         if _is_valid_file(ret):

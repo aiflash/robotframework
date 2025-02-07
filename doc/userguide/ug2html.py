@@ -23,6 +23,9 @@ Version number to use is got automatically from 'src/robot/version.py' file.
 import os
 import sys
 import shutil
+from pathlib import Path
+
+from translations import update_translations
 
 # First part of this file is Pygments configuration and actual
 # documentation generation follows it.
@@ -93,34 +96,26 @@ from docutils.parsers.rst import directives
 from pygments import highlight, __version__ as pygments_version
 from pygments.lexers import get_lexer_by_name
 
-# Use latest version, not version bundled with Pygments
-import robotframeworklexer
-
 
 def too_old(version_string, minimum):
     version = tuple(int(v) for v in version_string.split('.')[:2])
     return version < minimum
 
 
-if too_old(getattr(robotframeworklexer, '__version__', '1.0'), (1, 1)):
-    sys.exit('robotframeworklexer >= 1.1 is required.')
-if too_old(pygments_version, (2, 1)):
-    sys.exit('Pygments >= 2.1 is required.')
+if too_old(pygments_version, (2, 8)):
+    sys.exit('Pygments >= 2.8 is required.')
 
 
 def pygments_directive(name, arguments, options, content, lineno,
                        content_offset, block_text, state, state_machine):
     try:
-        if arguments[0] == 'robotframework':
-            lexer = robotframeworklexer.RobotFrameworkLexer()
-        else:
-            lexer = get_lexer_by_name(arguments[0])
+        lexer = get_lexer_by_name(arguments[0])
     except ValueError as err:
         raise ValueError(f'Invalid syntax highlighting language "{arguments[0]}".')
     # take an arbitrary option if more than one is given
     formatter = options and VARIANTS[options.keys()[0]] or DEFAULT
     # possibility to read the content from an external file
-    filtered = [ line for line in content if line.strip() ]
+    filtered = [line for line in content if line.strip()]
     if len(filtered) == 1:
         path = filtered[0].replace('/', os.sep)
         if os.path.isfile(path):
@@ -154,21 +149,26 @@ def create_userguide():
     from docutils.core import publish_cmdline
 
     print('Creating user guide ...')
+    print('Updating translations')
+    update_translations()
     version, version_file = _update_version()
     install_file = _copy_installation_instructions()
 
     description = 'HTML generator for Robot Framework User Guide.'
-    arguments = ['--time',
-                 '--stylesheet-path', ['src/userguide.css'],
+    arguments = ['--stylesheet-path', ['src/userguide.css'],
                  'src/RobotFrameworkUserGuide.rst',
                  'RobotFrameworkUserGuide.html']
     os.chdir(CURDIR)
     publish_cmdline(writer_name='html', description=description, argv=arguments)
     os.unlink(version_file)
     os.unlink(install_file)
-    ugpath = os.path.abspath(arguments[-1])
-    print(ugpath)
+    ugpath = Path(arguments[-1]).absolute()
+    print(_link(ugpath))
     return ugpath, version
+
+
+def _link(path):
+    return f'\033]8;;{path.as_uri()}\033\\{path}\033]8;;\033\\'
 
 
 def _update_version():
@@ -250,7 +250,7 @@ def create_distribution():
         print(f'Copying {source!r} -> {dest!r}')
         shutil.copy(source, dest)
 
-    link_regexp = re.compile('''
+    link_regexp = re.compile(r'''
 (<(a|img)\s+.*?)
 (\s+(href|src)="(.*?)"|>)
 ''', re.VERBOSE | re.DOTALL | re.IGNORECASE)

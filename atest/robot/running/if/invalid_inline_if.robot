@@ -7,6 +7,9 @@ Resource          if.resource
 Invalid condition
     FAIL    NOT RUN
 
+Condition with non-existing variable
+    FAIL
+
 Invalid condition with other error
     FAIL    NOT RUN
 
@@ -62,10 +65,11 @@ Unnecessary END
 Invalid END after inline header
     [Template]    NONE
     ${tc} =    Check Test Case    ${TEST NAME}
-    Check IF/ELSE Status    PASS    root=${tc.body[0]}
-    Check Log Message     ${tc.body[0].body[0].body[0].body[0]}   Executed inside inline IF
-    Check Log Message     ${tc.body[1].body[0]}                   Executed outside IF
-    Check Keyword Data    ${tc.body[2]}                           Reserved.End    status=FAIL
+    Check IF/ELSE Status    PASS    root=${tc[0]}
+    Check Log Message     ${tc[0, 0, 0, 0]}    Executed inside inline IF
+    Check Log Message     ${tc[1, 0]}          Executed outside IF
+    Should Be Equal       ${tc[2].type}        ERROR
+    Should Be Equal       ${tc[2].status}      FAIL
 
 Assign in IF branch
     FAIL
@@ -100,7 +104,12 @@ Assign when ELSE IF branch is empty
 Assign when ELSE branch is empty
     FAIL    NOT RUN
 
-Assign with RETURN
+Control structures are allowed
     [Template]    NONE
     ${tc} =    Check Test Case    ${TESTNAME}
-    Check IF/ELSE Status    FAIL    NOT RUN    root=${tc.body[0].body[0]}
+    Check IF/ELSE Status    NOT RUN    PASS    root=${tc[0, 0]}
+
+Control structures are not allowed with assignment
+    [Template]    NONE
+    ${tc} =    Check Test Case    ${TESTNAME}
+    Check IF/ELSE Status    FAIL    NOT RUN    root=${tc[0, 0]}

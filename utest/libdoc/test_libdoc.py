@@ -1,20 +1,26 @@
-import unittest
 import json
-from os.path import dirname, join, normpath
+import os
+import tempfile
+import unittest
+from pathlib import Path
 
-from jsonschema import validate
+from jsonschema import Draft202012Validator
 
 from robot.utils import PY_VERSION
 from robot.utils.asserts import assert_equal
 from robot.libdocpkg import LibraryDocumentation
 from robot.libdocpkg.model import LibraryDoc, KeywordDoc
-from robot.libdocpkg.htmlutils import HtmlToText, DocToHtml
+from robot.libdocpkg.htmlutils import HtmlToText
 
-get_shortdoc = HtmlToText().get_shortdoc_from_html
+get_short_doc = HtmlToText().get_short_doc_from_html
 get_text = HtmlToText().html_to_plain_text
 
-CURDIR = dirname(__file__)
-DATADIR = normpath(join(CURDIR, '../../atest/testdata/libdoc/'))
+CURDIR = Path(__file__).resolve().parent
+DATADIR = (CURDIR / '../../atest/testdata/libdoc/').resolve()
+TEMPDIR = Path(os.getenv('TEMPDIR') or tempfile.gettempdir())
+VALIDATOR = Draft202012Validator(
+    json.loads((CURDIR / '../../doc/schema/libdoc.json').read_text(encoding='UTF-8'))
+)
 
 try:
     from typing_extensions import TypedDict
@@ -24,62 +30,56 @@ else:
     TYPEDDICT_SUPPORTS_REQUIRED_KEYS = True
 
 
-def verify_shortdoc_output(doc_input, expected):
-    current = get_shortdoc(doc_input)
+def verify_short_doc_output(doc_input, expected):
+    current = get_short_doc(doc_input)
     assert_equal(current, expected)
 
 
-def verify_keyword_shortdoc(doc_format, doc_input, expected):
+def verify_keyword_short_doc(doc_format, doc_input, expected):
     libdoc = LibraryDoc(doc_format=doc_format)
     libdoc.keywords = [KeywordDoc(doc=doc_input)]
-    formatter = DocToHtml(doc_format)
-    keyword = libdoc.keywords[0]
-    keyword.doc = formatter(keyword.doc)
-    libdoc.doc_format = 'HTML'
-    assert_equal(keyword.shortdoc, expected)
+    assert_equal(libdoc.keywords[0].short_doc, expected)
 
 
 def run_libdoc_and_validate_json(filename):
-    library = join(DATADIR, filename)
+    library = DATADIR / filename
     json_spec = LibraryDocumentation(library).to_json()
-    with open(join(CURDIR, '../../doc/schema/libdoc_schema.json')) as f:
-        schema = json.load(f)
-    validate(instance=json.loads(json_spec), schema=schema)
+    VALIDATOR.validate(instance=json.loads(json_spec))
 
 
 class TestHtmlToDoc(unittest.TestCase):
 
-    def test_shortdoc_firstline(self):
+    def test_short_doc_first_line(self):
         doc = """<p>This is the first line</p>
         <p>This is the second one</p>"""
         exp = "This is the first line"
-        verify_shortdoc_output(doc, exp)
+        verify_short_doc_output(doc, exp)
 
-    def test_shortdoc_replace_format(self):
+    def test_short_doc_replace_format(self):
         doc = "<p>This is <b>bold</b> or <i>italic</i> or <i><b>italicbold</b></i> and code.</p>"
         exp = "This is *bold* or _italic_ or _*italicbold*_ and code."
-        verify_shortdoc_output(doc, exp)
+        verify_short_doc_output(doc, exp)
 
-    def test_shortdoc_replace_format_multiline(self):
+    def test_short_doc_replace_format_multiline(self):
         doc = """<p>This is <b>bold</b>
         or <i>italic</i> or <i><b>italic
         bold</b></i> and <code>code</code>.</p>"""
         exp = """This is *bold*
         or _italic_ or _*italic
         bold*_ and ``code``."""
-        verify_shortdoc_output(doc, exp)
+        verify_short_doc_output(doc, exp)
 
-    def test_shortdoc_unexcape_html(self):
+    def test_short_doc_unexcape_html(self):
         doc = """<p>This &amp; &quot;<b>&lt;b&gt;is&lt;/b&gt;</b>&quot;
         &lt;i&gt;the&lt;/i&gt; &lt;/p&gt;&apos;first&apos; line</p>"""
         exp = """This & "*<b>is</b>*"
         <i>the</i> </p>'first' line"""
-        verify_shortdoc_output(doc, exp)
+        verify_short_doc_output(doc, exp)
 
 
 class TestKeywordShortDoc(unittest.TestCase):
 
-    def test_shortdoc_with_multiline_plain_text(self):
+    def test_short_doc_with_multiline_plain_text(self):
         doc = """Writes the message to the console.
 
     If the ``newline`` argument is ``True``, a newline character is
@@ -89,14 +89,12 @@ class TestKeywordShortDoc(unittest.TestCase):
     Using the standard error stream is possibly by giving the ``stream``
     argument value ``'stderr'``."""
         exp = "Writes the message to the console."
-        verify_keyword_shortdoc('TEXT', doc, exp)
+        verify_keyword_short_doc('TEXT', doc, exp)
 
-    def test_shortdoc_with_empty_plain_text(self):
-        doc = ""
-        exp = ""
-        verify_keyword_shortdoc('TEXT', doc, exp)
+    def test_short_doc_with_empty_plain_text(self):
+        verify_keyword_short_doc('TEXT', '', '')
 
-    def test_shortdoc_with_multiline_robot_format(self):
+    def test_short_doc_with_multiline_robot_format(self):
         doc = """Writes the
 *message* to
 _the_ ``console``.
@@ -108,14 +106,12 @@ By default the message is written to the standard output stream.
 Using the standard error stream is possibly by giving the ``stream``
 argument value ``'stderr'``."""
         exp = "Writes the *message* to _the_ ``console``."
-        verify_keyword_shortdoc('ROBOT', doc, exp)
+        verify_keyword_short_doc('ROBOT', doc, exp)
 
-    def test_shortdoc_with_empty_robot_format(self):
-        doc = ""
-        exp = ""
-        verify_keyword_shortdoc('ROBOT', doc, exp)
+    def test_short_doc_with_empty_robot_format(self):
+        verify_keyword_short_doc('ROBOT', '', '')
 
-    def test_shortdoc_with_multiline_HTML_format(self):
+    def test_short_doc_with_multiline_HTML_format(self):
         doc = """<p><strong>Writes</strong><br><em>the</em> <b>message</b>
 to <i>the</i> <code>console</code>.<br><br>
 If the <code>newline</code> argument is <code>True</code>, a newline character is
@@ -124,9 +120,9 @@ automatically added to the message.</p>
 Using the standard error stream is possibly by giving the <code>stream</code>
 argument value ``'stderr'``."""
         exp = "*Writes* _the_ *message* to _the_ ``console``."
-        verify_keyword_shortdoc('HTML', doc, exp)
+        verify_keyword_short_doc('HTML', doc, exp)
 
-    def test_shortdoc_with_nonclosing_p_HTML_format(self):
+    def test_short_doc_with_nonclosing_p_HTML_format(self):
         doc = """<p><strong>Writes</strong><br><em>the</em> <b>message</b>
 to <i>the</i> <code>console</code>.<br><br>
 If the <code>newline</code> argument is <code>True</code>, a newline character is
@@ -135,18 +131,13 @@ automatically added to the message.
 Using the standard error stream is possibly by giving the <code>stream</code>
 argument value ``'stderr'``."""
         exp = "*Writes* _the_ *message* to _the_ ``console``."
-        verify_keyword_shortdoc('HTML', doc, exp)
+        verify_keyword_short_doc('HTML', doc, exp)
 
-    def test_shortdoc_with_empty_HTML_format(self):
-        doc = ""
-        exp = ""
-        verify_keyword_shortdoc('HTML', doc, exp)
+    def test_short_doc_with_empty_HTML_format(self):
+        verify_keyword_short_doc('HTML', '', '')
 
-    try:
-        from docutils.core import publish_parts
-        def test_shortdoc_with_multiline_reST_format(self):
-
-            doc = """Writes the **message**
+    def test_short_doc_with_multiline_reST_format(self):
+        doc = """Writes the **message**
 to *the* console.
 
 If the ``newline`` argument is ``True``, a newline character is
@@ -155,15 +146,11 @@ automatically added to the message.
 By default the message is written to the standard output stream.
 Using the standard error stream is possibly by giving the ``stream``
 argument value ``'stderr'``."""
-            exp = "Writes the **message** to *the* console."
-            verify_keyword_shortdoc('REST', doc, exp)
+        exp = "Writes the **message** to *the* console."
+        verify_keyword_short_doc('REST', doc, exp)
 
-        def test_shortdoc_with_empty_reST_format(self):
-            doc = ""
-            exp = ""
-            verify_keyword_shortdoc('REST', doc, exp)
-    except ImportError:
-        pass
+    def test_short_doc_with_empty_reST_format(self):
+        verify_keyword_short_doc('REST', '', '')
 
 
 class TestLibdocJsonWriter(unittest.TestCase):
@@ -234,37 +221,55 @@ class TestLibdocJsonWriter(unittest.TestCase):
     def test_DataTypesLibrary_py(self):
         run_libdoc_and_validate_json('DataTypesLibrary.py')
 
-    def test_DataTypesLibrary_libspex(self):
+    def test_DataTypesLibrary_libspec(self):
         run_libdoc_and_validate_json('DataTypesLibrary.libspec')
 
 
-class TestLibdocJsonBuilder(unittest.TestCase):
+class TestJson(unittest.TestCase):
 
-    def test_libdoc_json_roundtrip(self):
-        library = join(DATADIR, 'DynamicLibrary.json')
-        spec = LibraryDocumentation(library).to_json()
+    def test_roundtrip(self):
+        self._test('DynamicLibrary.json')
+
+    def test_roundtrip_with_datatypes(self):
+        self._test('DataTypesLibrary.json')
+
+    def _test(self, lib):
+        path = DATADIR / lib
+        spec = LibraryDocumentation(path).to_json()
         data = json.loads(spec)
-        with open(library) as f:
+        with open(path, encoding='locale' if PY_VERSION >= (3, 10) else None) as f:
             orig_data = json.load(f)
         data['generated'] = orig_data['generated'] = None
-        assert_equal(data, orig_data)
+        self.maxDiff = None
+        self.assertDictEqual(data, orig_data)
 
-    def test_libdoc_json_roundtrip_with_dt(self):
-        library = join(DATADIR, 'DataTypesLibrary.json')
-        spec = LibraryDocumentation(library).to_json()
-        data = json.loads(spec)
-        with open(library) as f:
-            orig_data = json.load(f)
-        data['generated'] = orig_data['generated'] = None
-        assert_equal(data, orig_data)
+
+class TestXmlSpec(unittest.TestCase):
+
+    def test_roundtrip(self):
+        self._test('DynamicLibrary.json')
+
+    def test_roundtrip_with_datatypes(self):
+        self._test('DataTypesLibrary.json')
+
+    def _test(self, lib):
+        path = TEMPDIR / 'libdoc-utest-spec.xml'
+        orig_lib = LibraryDocumentation(DATADIR / lib)
+        orig_lib.save(path, format='XML')
+        spec_lib = LibraryDocumentation(path)
+        orig_data = orig_lib.to_dictionary()
+        spec_data = spec_lib.to_dictionary()
+        orig_data['generated'] = spec_data['generated'] = None
+        self.maxDiff = None
+        self.assertDictEqual(orig_data, spec_data)
 
 
 class TestLibdocTypedDictKeys(unittest.TestCase):
 
     def test_typed_dict_keys(self):
-        library = join(DATADIR, 'DataTypesLibrary.py')
+        library = DATADIR / 'DataTypesLibrary.py'
         spec = LibraryDocumentation(library).to_json()
-        current_items = json.loads(spec)['dataTypes']['typedDicts'][0]['items']
+        current_items = json.loads(spec)['typedocs'][7]['items']
         expected_items = [
             {
                 "key": "longitude",

@@ -5,6 +5,7 @@ import unittest
 from io import StringIO
 from os.path import abspath, dirname, join
 
+from robot.model import BodyItem
 from robot.running import TestSuite, TestSuiteBuilder
 from robot.utils.asserts import assert_equal
 
@@ -98,7 +99,7 @@ class TestRunning(unittest.TestCase):
 
     def test_variables(self):
         suite = TestSuite(name='Suite')
-        suite.resource.variables.create('${ERROR}', 'Error message')
+        suite.resource.variables.create('${ERROR}', ['Error message'])
         suite.resource.variables.create('@{LIST}', ['Error', 'added tag'])
         suite.tests.create(name='T1').body.create_keyword('Fail', args=['${ERROR}'])
         suite.tests.create(name='T2').body.create_keyword('Fail', args=['@{LIST}'])
@@ -106,6 +107,18 @@ class TestRunning(unittest.TestCase):
         assert_suite(result, 'Suite', 'FAIL', tests=2)
         assert_test(result.tests[0], 'T1', 'FAIL', msg='Error message')
         assert_test(result.tests[1], 'T2', 'FAIL', ('added tag',), 'Error')
+
+    def test_test_cannot_be_empty(self):
+        suite = TestSuite()
+        suite.tests.create(name='Empty')
+        result = run(suite)
+        assert_test(result.tests[0], 'Empty', 'FAIL', msg='Test cannot be empty.')
+
+    def test_name_cannot_be_empty(self):
+        suite = TestSuite()
+        suite.tests.create().body.create_keyword('Not executed')
+        result = run(suite)
+        assert_test(result.tests[0], '', 'FAIL', msg='Test name cannot be empty.')
 
     def test_modifiers_are_not_used(self):
         # These options are valid but not used. Modifiers can be passed to
@@ -122,18 +135,22 @@ class TestTestSetupAndTeardown(unittest.TestCase):
         self.tests = run(build('setups_and_teardowns.robot')).tests
 
     def test_passing_setup_and_teardown(self):
-        assert_test(self.tests[0], 'Test with setup and teardown', 'PASS')
+        assert_test(self.tests[0], 'Test with setup and teardown', 'PASS',
+                    tags=('tag1', 'tag2'))
 
     def test_failing_setup(self):
         assert_test(self.tests[1], 'Test with failing setup', 'FAIL',
+                    tags=('tag1',),
                     msg='Setup failed:\nTest Setup')
 
     def test_failing_teardown(self):
         assert_test(self.tests[2], 'Test with failing teardown', 'FAIL',
+                    tags=('tag1', 'tag2'),
                     msg='Teardown failed:\nTest Teardown')
 
     def test_failing_test_with_failing_teardown(self):
         assert_test(self.tests[3], 'Failing test with failing teardown', 'FAIL',
+                    tags=('tag1', 'tag2'),
                     msg='Keyword\n\nAlso teardown failed:\nTest Teardown')
 
 
@@ -145,13 +162,15 @@ class TestSuiteSetupAndTeardown(unittest.TestCase):
     def test_passing_setup_and_teardown(self):
         suite = run(self.suite)
         assert_suite(suite, 'Setups And Teardowns', 'FAIL', tests=4)
-        assert_test(suite.tests[0], 'Test with setup and teardown', 'PASS')
+        assert_test(suite.tests[0], 'Test with setup and teardown', 'PASS',
+                    tags=('tag1', 'tag2'))
 
     def test_failing_setup(self):
         suite = run(self.suite, variable='SUITE SETUP:Fail')
         assert_suite(suite, 'Setups And Teardowns', 'FAIL',
                      'Suite setup failed:\nAssertionError', 4)
         assert_test(suite.tests[0], 'Test with setup and teardown', 'FAIL',
+                    tags=('tag1', 'tag2'),
                     msg='Parent suite setup failed:\nAssertionError')
 
     def test_failing_teardown(self):
@@ -159,6 +178,7 @@ class TestSuiteSetupAndTeardown(unittest.TestCase):
         assert_suite(suite, 'Setups And Teardowns', 'FAIL',
                      'Suite teardown failed:\nAssertionError', 4)
         assert_test(suite.tests[0], 'Test with setup and teardown', 'FAIL',
+                    tags=('tag1', 'tag2'),
                     msg='Parent suite teardown failed:\nAssertionError')
 
     def test_failing_test_with_failing_teardown(self):
@@ -167,12 +187,13 @@ class TestSuiteSetupAndTeardown(unittest.TestCase):
                      'Suite setup failed:\nAssertionError\n\n'
                      'Also suite teardown failed:\nAssertionError', 4)
         assert_test(suite.tests[0], 'Test with setup and teardown', 'FAIL',
+                    tags=('tag1', 'tag2'),
                     msg='Parent suite setup failed:\nAssertionError\n\n'
                         'Also parent suite teardown failed:\nAssertionError')
 
     def test_nested_setups_and_teardowns(self):
         root = TestSuite(name='Root')
-        root.teardown.config(name='Fail', args=['Top level'], type='teardown')
+        root.teardown.config(name='Fail', args=['Top level'], type=BodyItem.TEARDOWN)
         root.suites.append(self.suite)
         suite = run(root, variable=['SUITE SETUP:Fail', 'SUITE TEARDOWN:Fail'])
         assert_suite(suite, 'Root', 'FAIL',
@@ -181,6 +202,7 @@ class TestSuiteSetupAndTeardown(unittest.TestCase):
                      'Suite setup failed:\nAssertionError\n\n'
                      'Also suite teardown failed:\nAssertionError', 4)
         assert_test(suite.suites[0].tests[0], 'Test with setup and teardown', 'FAIL',
+                    tags=('tag1', 'tag2'),
                     msg='Parent suite setup failed:\nAssertionError\n\n'
                         'Also parent suite teardown failed:\nAssertionError\n\n'
                         'Also parent suite teardown failed:\nTop level')
@@ -228,7 +250,7 @@ class TestCustomStreams(RunningTestCase):
 
     def _run(self, stdout=None, stderr=None, **options):
         suite = TestSuite(name='My Suite')
-        suite.resource.variables.create('${MESSAGE}', 'Hello, world!')
+        suite.resource.variables.create('${MESSAGE}', ['Hello, world!'])
         suite.tests.create(name='My Test')\
             .body.create_keyword('Log', args=['${MESSAGE}', 'WARN'])
         run(suite, stdout=stdout, stderr=stderr, **options)

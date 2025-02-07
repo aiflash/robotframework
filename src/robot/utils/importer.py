@@ -15,16 +15,16 @@
 
 import os
 import sys
+import importlib
 import inspect
-from importlib import invalidate_caches as invalidate_import_caches
 
 from robot.errors import DataError
 
-from .encoding import system_decode
 from .error import get_error_details
+from .misc import seq2str
 from .robotpath import abspath, normpath
 from .robotinspect import is_init
-from .robottypes import type_name, is_unicode
+from .robottypes import type_name
 
 
 class Importer:
@@ -44,9 +44,10 @@ class Importer:
         """
         self._type = type or ''
         self._logger = logger or NoLogger()
-        self._importers = (ByPathImporter(logger),
-                           NonDottedImporter(logger),
-                           DottedImporter(logger))
+        library_import = type and type.upper() == 'LIBRARY'
+        self._importers = (ByPathImporter(logger, library_import),
+                           NonDottedImporter(logger, library_import),
+                           DottedImporter(logger, library_import))
         self._by_path_importer = self._importers[0]
 
     def import_class_or_module(self, name_or_path, instantiate_with_args=None,
@@ -60,7 +61,7 @@ class Importer:
             using them.
         :param return_source:
             When true, returns a tuple containing the imported module or class
-            and a path to it. By default returns only the imported module or class.
+            and a path to it. By default, returns only the imported module or class.
 
         The class or module to import can be specified either as a name, in which
         case it must be in the module search path, or as a path to the file or
@@ -81,9 +82,11 @@ class Importer:
         the name or path like ``Example:arg1:arg2``, separate
         :func:`~robot.utils.text.split_args_from_name_or_path` function can be
         used to split them before calling this method.
+
+        Use :meth:`import_module` if only a module needs to be imported.
         """
         try:
-            imported, source = self._import_class_or_module(name_or_path)
+            imported, source = self._import(name_or_path)
             self._log_import_succeeded(imported, name_or_path, source)
             imported = self._instantiate_if_needed(imported, instantiate_with_args)
         except DataError as err:
@@ -91,10 +94,34 @@ class Importer:
         else:
             return self._handle_return_values(imported, source, return_source)
 
-    def _import_class_or_module(self, name):
+    def import_module(self, name_or_path):
+        """Imports Python module based on the given name or path.
+
+        :param name_or_path:
+            Name or path of the module to import.
+
+        The module to import can be specified either as a name, in which
+        case it must be in the module search path, or as a path to the file or
+        directory implementing the module. See :meth:`import_class_or_module_by_path`
+        for more information about importing modules by path.
+
+        Use :meth:`import_class_or_module` if it is desired to get a class
+        from the imported module automatically.
+
+        New in Robot Framework 6.0.
+        """
+        try:
+            imported, source = self._import(name_or_path, get_class=False)
+            self._log_import_succeeded(imported, name_or_path, source)
+        except DataError as err:
+            self._raise_import_failed(name_or_path, err)
+        else:
+            return imported
+
+    def _import(self, name, get_class=True):
         for importer in self._importers:
             if importer.handles(name):
-                return importer.import_(name)
+                return importer.import_(name, get_class)
 
     def _handle_return_values(self, imported, source, return_source=False):
         if not return_source:
@@ -137,27 +164,14 @@ class Importer:
             self._raise_import_failed(path, err)
 
     def _log_import_succeeded(self, item, name, source):
-        import_type = '%s ' % self._type.lower() if self._type else ''
+        prefix = f'Imported {self._type.lower()}' if self._type else 'Imported'
         item_type = 'module' if inspect.ismodule(item) else 'class'
-        location = ("'%s'" % source) if source else 'unknown location'
-        self._logger.info("Imported %s%s '%s' from %s."
-                          % (import_type, item_type, name, location))
+        source = f"'{source}'" if source else 'unknown location'
+        self._logger.info(f"{prefix} {item_type} '{name}' from {source}.")
 
     def _raise_import_failed(self, name, error):
-        import_type = '%s ' % self._type.lower() if self._type else ''
-        msg = "Importing %s'%s' failed: %s" % (import_type, name, error.message)
-        if not error.details:
-            raise DataError(msg)
-        msg = [msg, error.details]
-        msg.extend(self._get_items_in('PYTHONPATH', sys.path))
-        raise DataError('\n'.join(msg))
-
-    def _get_items_in(self, type, items):
-        yield '%s:' % type
-        for item in items:
-            if item:
-                yield '  %s' % (item if is_unicode(item)
-                                else system_decode(item))
+        prefix = f'Importing {self._type.lower()}' if self._type else 'Importing'
+        raise DataError(f"{prefix} '{name}' failed: {error}")
 
     def _instantiate_if_needed(self, imported, args):
         if args is None:
@@ -176,8 +190,9 @@ class Importer:
             raise DataError(err.args[0])
         try:
             return imported(*positional, **dict(named))
-        except:
-            raise DataError('Creating instance failed: %s\n%s' % get_error_details())
+        except Exception:
+            message, traceback = get_error_details()
+            raise DataError(f'Creating instance failed: {message}\n{traceback}')
 
     def _get_arg_spec(self, imported):
         # Avoid cyclic import. Yuck.
@@ -192,28 +207,44 @@ class Importer:
 
 class _Importer:
 
-    def __init__(self, logger):
-        self._logger = logger
+    def __init__(self, logger, library_import=False):
+        self.logger = logger
+        self.library_import = library_import
 
     def _import(self, name, fromlist=None):
         if name in sys.builtin_module_names:
             raise DataError('Cannot import custom module with same name as '
                             'Python built-in module.')
-        invalidate_import_caches()
+        importlib.invalidate_caches()
         try:
             return __import__(name, fromlist=fromlist)
-        except:
-            raise DataError(*get_error_details())
+        except Exception:
+            message, traceback = get_error_details(full_traceback=False)
+            path = '\n'.join(f'  {p}' for p in sys.path)
+            raise DataError(f'{message}\n{traceback}\nPYTHONPATH:\n{path}')
 
     def _verify_type(self, imported):
         if inspect.isclass(imported) or inspect.ismodule(imported):
             return imported
-        raise DataError('Expected class or module, got %s.'
-                        % type_name(imported))
+        raise DataError(f'Expected class or module, got {type_name(imported)}.')
 
-    def _get_class_from_module(self, module, name=None):
-        klass = getattr(module, name or module.__name__, None)
-        return klass if inspect.isclass(klass) else None
+    def _get_possible_class(self, module, name=None):
+        cls = self._get_class_matching_module_name(module, name)
+        if not cls and self.library_import:
+            cls = self._get_decorated_library_class_in_imported_module(module)
+        return cls or module
+
+    def _get_class_matching_module_name(self, module, name):
+        cls = getattr(module, name or module.__name__, None)
+        return cls if inspect.isclass(cls) else None
+
+    def _get_decorated_library_class_in_imported_module(self, module):
+        def predicate(item):
+            return (inspect.isclass(item)
+                    and hasattr(item, 'ROBOT_AUTO_KEYWORDS')
+                    and item.__module__ == module.__name__)
+        classes = [cls for _, cls in inspect.getmembers(module, predicate)]
+        return classes[0] if len(classes) == 1 else None
 
     def _get_source(self, imported):
         try:
@@ -229,11 +260,12 @@ class ByPathImporter(_Importer):
     def handles(self, path):
         return os.path.isabs(path)
 
-    def import_(self, path):
+    def import_(self, path, get_class=True):
         self._verify_import_path(path)
         self._remove_wrong_module_from_sys_modules(path)
-        module = self._import_by_path(path)
-        imported = self._get_class_from_module(module) or module
+        imported = self._import_by_path(path)
+        if get_class:
+            imported = self._get_possible_class(imported)
         return self._verify_type(imported), path
 
     def _verify_import_path(self, path):
@@ -249,8 +281,8 @@ class ByPathImporter(_Importer):
         importing_package = os.path.splitext(path)[1] == ''
         if self._wrong_module_imported(name, importing_from, importing_package):
             del sys.modules[name]
-            self._logger.info("Removed module '%s' from sys.modules to import "
-                              "fresh module." % name)
+            self.logger.info(f"Removed module '{name}' from sys.modules to import "
+                             f"a fresh module.")
 
     def _split_path_to_module(self, path):
         module_dir, module_file = os.path.split(abspath(path))
@@ -289,9 +321,10 @@ class NonDottedImporter(_Importer):
     def handles(self, name):
         return '.' not in name
 
-    def import_(self, name):
-        module = self._import(name)
-        imported = self._get_class_from_module(module) or module
+    def import_(self, name, get_class=True):
+        imported = self._import(name)
+        if get_class:
+            imported = self._get_possible_class(imported)
         return self._verify_type(imported), self._get_source(imported)
 
 
@@ -300,15 +333,15 @@ class DottedImporter(_Importer):
     def handles(self, name):
         return '.' in name
 
-    def import_(self, name):
+    def import_(self, name, get_class=True):
         parent_name, lib_name = name.rsplit('.', 1)
         parent = self._import(parent_name, fromlist=[str(lib_name)])
         try:
             imported = getattr(parent, lib_name)
         except AttributeError:
-            raise DataError("Module '%s' does not contain '%s'."
-                            % (parent_name, lib_name))
-        imported = self._get_class_from_module(imported, lib_name) or imported
+            raise DataError(f"Module '{parent_name}' does not contain '{lib_name}'.")
+        if get_class:
+            imported = self._get_possible_class(imported, lib_name)
         return self._verify_type(imported), self._get_source(imported)
 
 

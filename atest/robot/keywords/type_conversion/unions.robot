@@ -24,13 +24,19 @@ Union with subscripted generics and str
 Union with TypedDict
     Check Test Case    ${TESTNAME}
 
+Union with str and TypedDict
+    Check Test Case    ${TESTNAME}
+
 Union with item not liking isinstance
     Check Test Case    ${TESTNAME}
 
 Argument not matching union
     Check Test Case    ${TESTNAME}
 
-Union with custom type
+Union with unrecognized type
+    Check Test Case    ${TESTNAME}
+
+Union with only unrecognized types
     Check Test Case    ${TESTNAME}
 
 Multiple types using tuple
@@ -57,8 +63,22 @@ Avoid unnecessary conversion
 Avoid unnecessary conversion with ABC
     Check Test Case    ${TESTNAME}
 
+Default value type
+    Check Test Case    ${TESTNAME}
+
+Default value type with unrecognized type
+    Check Test Case    ${TESTNAME}
+
 Union with invalid types
     Check Test Case    ${TESTNAME}
 
 Tuple with invalid types
     Check Test Case    ${TESTNAME}
+
+Union without types
+    Check Test Case    ${TESTNAME}
+    Check Log Message    ${ERRORS}[1]    Error in library 'unions': Adding keyword 'union_without_types' failed: Union cannot be empty.    ERROR
+
+Empty tuple
+    Check Test Case    ${TESTNAME}
+    Check Log Message    ${ERRORS}[0]    Error in library 'unions': Adding keyword 'empty_tuple' failed: Union cannot be empty.    ERROR

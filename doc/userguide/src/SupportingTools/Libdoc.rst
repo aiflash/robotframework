@@ -15,18 +15,19 @@ on the console.
 
 Documentation can be created for:
 
-- libraries implemented with Python__ or Java__ using the normal
-  static library API,
-- libraries using the `dynamic API`__, including remote libraries, and
-- `resource files`_.
+- libraries implemented using the normal static library API__,
+- libraries using the `dynamic API`__, including remote libraries,
+- `resource files`_,
+- `suite files`_, and
+- `suite initialization files`_.
 
 Additionally it is possible to use XML and JSON spec files created by Libdoc
 earlier as an input.
 
-.. note:: The support for the JSON spec files is new in Robot Framework 4.0.
+.. note:: Support for generating documentation for suite files and suite
+          initialization files is new in Robot Framework 6.0.
 
 __ `Python libraries`_
-__ `Java libraries`_
 __ `Dynamic libraries`_
 
 General usage
@@ -55,13 +56,21 @@ Options
                            format and `html` means converting documentation to HTML. The
                            default is `raw` with XML spec files and `html` with JSON
                            specs and when using the special `libspec` format.
-                           New in Robot Framework 4.0.
   -F, --docformat <robot|html|text|rest>
                            Specifies the source documentation format. Possible
                            values are Robot Framework's documentation format,
                            HTML, plain text, and reStructuredText. Default value
                            can be specified in test library source code and
                            the initial default value is `robot`.
+  --theme <dark|light|none>
+                           Use dark or light HTML theme. If this option is not used,
+                           or the value is `none`, the theme is selected based on
+                           the browser color scheme. Only applicable with HTML outputs.
+                           New in Robot Framework 6.0.
+  --language <lang>
+                          Set the default language in documentation. `lang`
+                          must be a code of a built-in language, which are
+                          `en` and `fi`. New in Robot Framework 7.2.
   -N, --name <newname>     Sets the name of the documented library or resource.
   -V, --version <newversion>  Sets the version of the documented library or
                            resource. The default value for test libraries is
@@ -69,7 +78,7 @@ Options
   -P, --pythonpath <path>  Additional locations where to search for libraries
                            and resources similarly as when `running tests`__.
   --quiet                  Do not print the path of the generated output file
-                           to the console. New in Robot Framework 4.0.
+                           to the console.
   -h, --help               Prints this help.
 
 __ `Library version`_
@@ -90,10 +99,7 @@ multiple Python versions and want to use a specific version with Libdoc::
     python -m robot.libdoc ExampleLibrary ExampleLibrary.html
     python3.9 -m robot.libdoc ExampleLibrary ExampleLibrary.html
 
-Yet another alternative is running the `robot.libdoc` module as a script.
-This can be useful if you have done a `manual installation`_ or otherwise
-just have the :file:`robot` directory with the source code somewhere in your
-system::
+Yet another alternative is running the `robot.libdoc` module as a script::
 
     python path/to/robot/libdoc.py ExampleLibrary ExampleLibrary.html
 
@@ -121,20 +127,6 @@ must be catenated with the library name or path using two colons like
 `MyLibrary::arg1::arg2`. If arguments change what keywords the library
 provides or otherwise alter its documentation, it might be a good idea to use
 :option:`--name` option to also change the library name accordingly.
-
-Java libraries with path
-''''''''''''''''''''''''
-
-A Java test library implemented using the `static library API`_ can be
-specified by giving the path to the source code file containing the
-library implementation. When using Java 9 or newer, documentation can be
-generated without external dependencies, but with older Java versions the
-:file:`tools.jar`, which is part of the Java JDK distribution, must be found
-from the ``CLASSPATH`` when Libdoc is executed. Notice that generating
-documentation for Java libraries works only with Jython.
-
-.. note:: Generating documentation without :file:`tools.jar` when using
-          Java 9 or newer is a new feature in Robot Framework 3.1.
 
 Resource files with path
 ''''''''''''''''''''''''
@@ -192,6 +184,13 @@ keyword search dialog that can also be opened by simply pressing the `s` key.
 Libdoc automatically creates HTML documentation if the output file extension
 is :file:`*.html`. If there is a need to use some other extension, the
 format can be specified explicitly with the :option:`--format` option.
+
+Starting from Robot Framework 7.2, it is possible to localise the static
+texts in the HTML documentation by using the :option:`--language` option.
+
+See the `README.rst` file in `src/web/libodc` directory in the project
+repository for up to date information about how to add new languages
+for the localisation.
 
 ::
 
@@ -303,13 +302,12 @@ Examples::
 Writing documentation
 ---------------------
 
-This section discusses writing documentation for Python__ and Java__ based test
+This section discusses writing documentation for Python__ based test
 libraries that use the static library API as well as for `dynamic libraries`_
 and `resource files`__. `Creating test libraries`_ and `resource files`_ is
 described in more details elsewhere in the User Guide.
 
 __ `Python libraries`_
-__ `Java libraries`_
 __ `Resource file documentation`_
 
 Python libraries
@@ -331,59 +329,15 @@ the end of this chapter.
 
     src/SupportingTools/ExampleLibrary.py
 
-If you want to use non-ASCII characters in the documentation, the documentation
-must either be Unicode string (default in Python 3) or UTF-8 encoded bytes.
+.. tip:: If you library does some initialization work that should not be done
+         when using Libdoc, you can `easily detect is Robot Framework running`__
 
-.. tip:: When using Python 2, you it is a good idea to set the
-         `source code encoding`__ to ease using non-ASCII characters.
-
-         For more information on Python documentation strings, see `PEP-257`__.
+.. tip:: For more information on Python documentation strings, see `PEP-257`__.
 
 __ `Libdoc HTML documentation`_
 __ `Libdoc example`_
-__ http://www.python.org/dev/peps/pep-0263
+__ `Detecting is Robot Framework running`_
 __ http://www.python.org/dev/peps/pep-0257
-
-Java libraries
-~~~~~~~~~~~~~~
-
-Documentation for Java libraries that use the `static library API`_ is written
-as normal `Javadoc comments`__ for the library class and methods. In this case
-Libdoc actually uses the Javadoc tool internally, and thus
-:file:`tools.jar` containing it must be in ``CLASSPATH``. This jar file is part
-of the normal Java SDK distribution and ought to be found from :file:`bin`
-directory under the Java SDK installation.
-
-The following simple example has exactly same documentation (and functionality)
-than the earlier Python example.
-
-.. sourcecode:: java
-
-    /**
-     * Library for demo purposes.
-     *
-     * This library is only used in an example and it doesn't do anything useful.
-     */
-    public class ExampleLibrary {
-
-        /**
-         * Does nothing.
-         */
-        public void myKeyword() {
-        }
-
-        /**
-         * Takes one argument and *does nothing* with it.
-         *
-         * Examples:
-         * | Your Keyword | xxx |
-         * | Your Keyword | yyy |
-         */
-        public void yourKeyword(String arg) {
-        }
-    }
-
-__ http://en.wikipedia.org/wiki/Javadoc
 
 Dynamic libraries
 ~~~~~~~~~~~~~~~~~
@@ -403,10 +357,9 @@ Importing section
 ~~~~~~~~~~~~~~~~~
 
 A separate section about how the library is imported is created based on its
-initialization methods. For a Python library, if it has an  `__init__`
+initialization methods. If the library has an  `__init__`
 method that takes arguments in addition to `self`, its documentation and
-arguments are shown. For a Java library, if it has a public constructor that
-accepts arguments, all its public constructors are shown.
+arguments are shown.
 
 .. sourcecode:: python
 
@@ -458,7 +411,7 @@ Possible variables in resource files can not be documented.
        ...    | Your Keyword | yyy |
        No Operation
 
-__ `Newlines in test data`_
+__ `Newlines`_
 
 Documentation syntax
 --------------------
@@ -766,7 +719,7 @@ in libraries or in resource files:
   `free positional`__, `free named`__, or `normal argument`__ that can be given
   either by position or by name.
 - Possible default value. Shown like `= 42`.
-- Possible type. Shown like `<int>`. Can be a link to a custom type as explained
+- Possible type. Shown like `<int>`. Can be a link to type documentation as explained
   in the next section.
 
 __ `Positional-only arguments`_
@@ -778,22 +731,25 @@ __ `Keyword arguments`_
 When referring to arguments in keyword documentation, it is recommended to
 use `inline code style <inline styles_>`__ like :codesc:`\`\`argument\`\``.
 
-Automatically listing data types
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Automatically listing type documentation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 As mentioned above, Libdoc automatically shows possible type information when
 listing arguments. If the type is a custom type based on Enum_ or TypedDict_,
+the type is `automatically converted`__, or the type has `custom converter`__,
 also the type itself is listed separately to show more information about it.
 When these types are used in arguments, the type name also becomes a link
 to the type information.
 
-All listed data types show possible type documentation. In addition to that,
-types based on `Enum` list available members and types based on `TypedDict`
-show the dictionary structure.
+All listed data types show possible type documentation as well as what argument
+types are supported. In addition to that, types based on `Enum` list available
+members and types based on `TypedDict` show the dictionary structure.
 
-.. note:: Automatically listing data types is new in Robot Framework 4.0.
+.. note:: Automatically listing types based on `Enum` and `TypedDict` is new
+          in Robot Framework 4.0. Listing other types is new in Robot Framework 5.0.
 
-.. _TypedDict: https://docs.python.org/library/typing.html?highlight=typeddict#typing.TypedDict
+__ `Supported conversions`_
+__ `Custom argument converters`_
 
 Libdoc example
 --------------
